@@ -108,18 +108,85 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message:
         await update.message.reply_text(help_text, parse_mode="HTML")
 
-# Command: /status
-async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    status_text = (
-        "🟢 <b>ប្រព័ន្ធសុវត្ថិភាព TeleGuard Pro សកម្ម (Online 24/7)</b>\n"
-        f"• Admin ID: <code>{ADMIN_ID}</code>\n"
-        "• Anti-Malware Engine: <b>Active</b>\n"
-        "• Anti-Flood Shield: <b>Active (5 msgs/4s)</b>\n"
-        "• Web App 2-Way Sync: <b>Enabled 🔄</b>\n"
-        "• Status: <b>Normal & Protected</b>"
+# Command: /id, /groupid, /myid, /chatid, /info
+async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.effective_message
+    if not message:
+        return
+
+    chat = update.effective_chat
+    user = update.effective_user
+
+    chat_id = str(chat.id) if chat else "Unknown"
+    chat_title = chat.title if chat and chat.title else "Private Chat"
+    chat_type = chat.type.capitalize() if chat and chat.type else "Unknown"
+
+    user_id = str(user.id) if user else "Unknown"
+    user_name = user.first_name if user else "User"
+    username = f"@{user.username}" if user and user.username else "No username"
+
+    response_text = (
+        "🆔 <b>ព័ត៌មានអត្តសញ្ញាណ (ID & Chat Info)</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"👥 <b>ឈ្មោះក្រុម:</b> <code>{chat_title}</code>\n"
+        f"📍 <b>Group ID:</b> <code>{chat_id}</code>  <i>(ចុចលើលេខដើម្បី Copy)</i>\n"
+        f"🏷️ <b>ប្រភេទ Chat:</b> {chat_type}\n\n"
+        f"👤 <b>អ្នកស្នើសុំ:</b> {user_name} ({username})\n"
+        f"🔑 <b>User ID:</b> <code>{user_id}</code>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🛡️ <i>Security_bot_V2.0.1 កំពុងការពារគ្រុបនេះដោយស្វ័យប្រវត្តិ!</i>"
     )
-    if update.message:
-        await update.message.reply_text(status_text, parse_mode="HTML")
+
+    await message.reply_text(response_text, parse_mode="HTML")
+
+    # 🔄 Auto-Sync Group to Web App CRM
+    if chat and chat.type in ["group", "supergroup"]:
+        sync_group_status(
+            chat_id=chat_id,
+            title=chat_title,
+            added_by_name=user_name,
+            added_by_username=username,
+            added_by_id=user_id
+        )
+
+# Handler: When bot or new member is added to group
+async def chat_member_update_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.effective_message
+    if not message or not message.new_chat_members:
+        return
+
+    chat = update.effective_chat
+    chat_id = str(chat.id) if chat else ""
+    chat_title = chat.title if chat else "Telegram Group"
+
+    for member in message.new_chat_members:
+        # If Bot itself was added
+        if member.id == context.bot.id:
+            from_user = message.from_user
+            adder_name = from_user.first_name if from_user else "Admin"
+            adder_username = f"@{from_user.username}" if from_user and from_user.username else ""
+            adder_id = str(from_user.id) if from_user else ""
+
+            welcome_msg = (
+                "🛡️ <b>Security_bot_V2.0.1 ត្រូវបានបន្ថែមចូលក្នុងគ្រុប!</b>\n\n"
+                f"👥 <b>ក្រុម:</b> <code>{chat_title}</code>\n"
+                f"🆔 <b>Group ID:</b> <code>{chat_id}</code>\n"
+                f"👑 <b>បន្ថែមដោយ:</b> {adder_name} ({adder_username})\n\n"
+                "⚠️ <b>ជំហានសំខាន់ដើម្បីបើកការការពារពេញលេញ៖</b>\n"
+                "1. សូម Promote Bot ឱ្យទៅជា <b>Admin</b>\n"
+                "2. បើកសិទ្ធិ <b>Delete Messages</b> និង <b>Ban/Restrict Users</b>\n\n"
+                "✅ <i>ប្រព័ន្ធការពារមេរោគ .apk/.exe និង Anti-Flood បានចាប់ផ្តើមជាផ្លូវការ!</i>"
+            )
+            await message.reply_text(welcome_msg, parse_mode="HTML")
+
+            # Auto-Sync to Web Dashboard CRM
+            sync_group_status(
+                chat_id=chat_id,
+                title=chat_title,
+                added_by_name=adder_name,
+                added_by_username=adder_username,
+                added_by_id=adder_id
+            )
 
 # Handler: Check Dangerous File Attachments (.apk, .exe, ...)
 async def file_inspector(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -216,7 +283,13 @@ def main():
     # Register Handlers
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("status", status_command))
+    app.add_handler(CommandHandler("id", id_command))
+    app.add_handler(CommandHandler("groupid", id_command))
+    app.add_handler(CommandHandler("myid", id_command))
+    app.add_handler(CommandHandler("chatid", id_command))
+    app.add_handler(CommandHandler("info", id_command))
+    app.add_handler(CommandHandler("status", id_command))
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, chat_member_update_handler))
     app.add_handler(MessageHandler(filters.Document.ALL, file_inspector))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_inspector))
 
