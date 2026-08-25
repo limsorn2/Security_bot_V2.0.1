@@ -1,0 +1,41 @@
+name: TeleGuard Pro Security Bot Runner
+
+on:
+  workflow_dispatch: # អនុញ្ញាតឱ្យចុច Run ដោយផ្ទាល់ពី GitHub
+  schedule:
+    # ដំណើរការឡើងវិញស្វ័យប្រវត្តិកុំឱ្យដាច់ (រៀងរាល់ ៥ ម៉ោងម្តង)
+    - cron: '0 */5 * * *'
+  push:
+    branches:
+      - main
+
+jobs:
+  run-security-bot:
+    name: Run Telegram Security Bot 24/7
+    runs-on: ubuntu-latest
+    timeout-minutes: 350 # កំណត់ម៉ោងដំណើរការអតិបរមាក្នុងមួយជុំ
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install python-telegram-bot requests aiohttp
+
+      - name: Run Telegram Bot
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          ADMIN_ID: ${{ secrets.ADMIN_ID }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          echo "🛡️ កំពុងចាប់ផ្តើមដំណើរការ TeleGuard Security Bot..."
+          python bot.py
