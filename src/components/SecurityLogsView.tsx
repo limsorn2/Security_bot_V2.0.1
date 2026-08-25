@@ -228,11 +228,11 @@ export const SecurityLogsView: React.FC<SecurityLogsViewProps> = ({
           <div className="flex items-center gap-1.5">
             <button
               onClick={handleExportCSV}
-              title="ទាញយកឯកសារ Excel/CSV"
-              className="bg-[#f8fafc] hover:bg-[#f1f4f9] text-[#1c2733] border border-[#e1e5eb] font-semibold px-2.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-colors"
+              title="ទាញយកឯកសារ CSV នៃកំណត់ត្រាសន្តិសុខទាំងអស់ (Download CSV)"
+              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              <span>នាំចេញ CSV</span>
+              <Download className="w-3.5 h-3.5 text-emerald-700" />
+              <span>ទាញយក CSV ({filteredLogs.length})</span>
             </button>
 
             <button

@@ -33,6 +33,7 @@ const DEFAULT_SETTINGS = {
   channel_target: "@sornsecurityrobot",
   notifications_enabled: true,
   cleanup_interval_days: 30, // 0 = never, 30 = 30 days, 60 = 60 days, 90 = 90 days
+  auto_purge_enabled: true,
   dark_mode: false
 };
 
@@ -245,7 +246,7 @@ app.get("/api/logs", (_req, res) => {
   const settings = readJsonFile(SETTINGS_FILE, DEFAULT_SETTINGS);
   let logs = readJsonFile<any[]>(LOGS_FILE, []);
   
-  if (settings.cleanup_interval_days && settings.cleanup_interval_days > 0) {
+  if (settings.auto_purge_enabled !== false && settings.cleanup_interval_days && settings.cleanup_interval_days > 0) {
     const { retained, purgedCount } = purgeExpiredLogs(logs, settings.cleanup_interval_days);
     if (purgedCount > 0) {
       writeJsonFile(LOGS_FILE, retained);

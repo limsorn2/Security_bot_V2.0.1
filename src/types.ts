@@ -86,6 +86,7 @@ export interface BotSettings {
   channel_target: string;
   notifications_enabled: boolean;
   cleanup_interval_days: number; // 0 for never, 30 for 30 days, 60 for 60 days, 90 for 90 days
+  auto_purge_enabled?: boolean;
   dark_mode?: boolean;
 }
 

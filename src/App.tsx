@@ -11,6 +11,7 @@ import { ChannelBroadcast } from "./components/ChannelBroadcast";
 import { BotCodeHub } from "./components/BotCodeHub";
 import { SettingsView } from "./components/SettingsView";
 import { SystemHealthIndicator } from "./components/SystemHealthIndicator";
+import { SecurityScoreBadge } from "./components/SecurityScoreBadge";
 import { KeyboardShortcutsModal } from "./components/KeyboardShortcutsModal";
 import {
   Shield,
@@ -418,6 +419,9 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2.5">
+            {/* Real-time Security Score Badge */}
+            <SecurityScoreBadge logs={logs} groups={groups} />
+
             {/* System Health Indicator (Telegram API + VirusTotal) */}
             <SystemHealthIndicator
               healthInfo={healthInfo}

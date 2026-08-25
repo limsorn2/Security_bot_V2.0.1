@@ -562,12 +562,47 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   <p className="text-[11px] text-[#708499]">កំណត់ឱ្យ Bot សម្អាត ឬលុប Log ចាស់ៗចោលស្វ័យប្រវត្តិដើម្បីរក្សាល្បឿន Database</p>
                 </div>
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded font-semibold">
-                Auto-Purge
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded font-semibold ${
+                formData.auto_purge_enabled !== false
+                  ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
+                  : "bg-gray-100 text-gray-500 border border-gray-200"
+              }`}>
+                {formData.auto_purge_enabled !== false ? "Auto-Purge សកម្ម" : "Auto-Purge បិទ"}
               </span>
             </div>
 
-            <div className="space-y-3">
+            {/* Auto-Purge Checkbox */}
+            <div className="p-3.5 bg-[#f8fafc] border border-[#e1e5eb] rounded-lg flex items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <input
+                  id="auto_purge_enabled_checkbox"
+                  type="checkbox"
+                  checked={formData.auto_purge_enabled !== false}
+                  onChange={(e) => setFormData({ ...formData, auto_purge_enabled: e.target.checked })}
+                  className="w-4 h-4 mt-0.5 rounded text-[#2481cc] focus:ring-0 cursor-pointer accent-[#2481cc]"
+                />
+                <label htmlFor="auto_purge_enabled_checkbox" className="cursor-pointer select-none">
+                  <span className="text-xs font-bold text-[#1c2733] block">
+                    បើកដំណើរការ Auto-Purge (Enable 'Auto-Purge' for logs older than cleanup interval)
+                  </span>
+                  <span className="text-[11px] text-[#708499] block mt-0.5">
+                    លុបកំណត់ត្រា Security Audit Logs ចាស់ៗលើសពី {formData.cleanup_interval_days || 30} ថ្ងៃដោយស្វ័យប្រវត្តិដើម្បីកុំឱ្យ Database ឡើងធ្ងន់
+                  </span>
+                </label>
+              </div>
+
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={formData.auto_purge_enabled !== false}
+                  onChange={(e) => setFormData({ ...formData, auto_purge_enabled: e.target.checked })}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#2481cc]"></div>
+              </label>
+            </div>
+
+            <div className={`space-y-3 transition-opacity ${formData.auto_purge_enabled === false ? "opacity-60" : ""}`}>
               <label className="block text-xs font-semibold text-[#1c2733]">
                 រយៈពេលរក្សាទុកទិន្នន័យ (Audit Log Retention Period)៖
               </label>
