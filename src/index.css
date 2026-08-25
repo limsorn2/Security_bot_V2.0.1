@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+.dark {
+  color-scheme: dark;
+}
+
+/* Dark mode palette overrides for comprehensive night monitoring */
+.dark body,
+.dark .theme-container {
+  background-color: #0c131d;
+  color: #e2e8f0;
+}
+
+.dark .bg-white {
+  background-color: #16202e !important;
+  color: #f1f5f9;
+}
+
+.dark .bg-\[\#f8fafc\],
+.dark .bg-slate-50,
+.dark .bg-gray-50 {
+  background-color: #111a26 !important;
+}
+
+.dark .bg-\[\#f1f4f9\] {
+  background-color: #0c131d !important;
+}
+
+.dark .border-\[\#e1e5eb\],
+.dark .border-gray-200,
+.dark .border-slate-200 {
+  border-color: #253344 !important;
+}
+
+.dark .text-\[\#1c2733\],
+.dark .text-slate-900,
+.dark .text-gray-900 {
+  color: #f8fafc !important;
+}
+
+.dark .text-\[\#708499\],
+.dark .text-slate-500,
+.dark .text-gray-500 {
+  color: #94a3b8 !important;
+}
+
+.dark input, 
+.dark select, 
+.dark textarea {
+  background-color: #111a26 !important;
+  border-color: #253344 !important;
+  color: #f8fafc !important;
+}
+
+.dark input::placeholder, 
+.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+.dark .hover\:bg-\[\#f1f4f9\]:hover,
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-slate-50:hover {
+  background-color: #1e2c3e !important;
+}
+
+.dark .hover\:bg-white:hover {
+  background-color: #1a2636 !important;
+}
