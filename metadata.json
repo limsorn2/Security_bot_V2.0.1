@@ -1,5 +1,5 @@
 {
-  "name": "TeleGuard Security Bot Dashboard",
+  "name": "Security_bot_V2.0.1",
   "description": "ប្រព័ន្ធគ្រប់គ្រងឆាតបតតេលេក្រាម ការពារមេរោគ Banking Trojan .apk, .exe, Anti-Flood និងផ្ទាំងបញ្ជា Master CRM",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

@@ -50,13 +50,13 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Brand Header */}
       <div className="p-5 border-b border-[#2d3b4a] flex items-center gap-3">
         <div className="w-10 h-10 bg-[#2481cc] rounded-full flex items-center justify-center text-xl font-bold text-white shadow-sm shrink-0">
-          T
+          S
         </div>
         <div className="leading-tight min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <h1 className="font-bold text-sm text-white truncate">TeleGuard Pro</h1>
+            <h1 className="font-bold text-sm text-white truncate">Security_bot</h1>
             <span className="text-[9px] bg-[#2481cc]/25 text-[#64b5f6] border border-[#2481cc]/40 px-1.5 py-0.2 rounded font-mono">
-              v2.5
+              V2.0.1
             </span>
           </div>
           <p className="text-[10px] text-[#708499] truncate">ប្រព័ន្ធគ្រប់គ្រងសន្តិសុខ Telegram</p>
