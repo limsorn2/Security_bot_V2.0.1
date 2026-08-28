@@ -268,16 +268,70 @@ export default function App() {
     }
   };
 
-  // Handle Group Action (add days, lifetime, revoke, toggle, delete)
+  // Handle Group Action (add days, lifetime, revoke, toggle, delete, clear_all, direct_add)
   const handleGroupAction = async (groupId: string, action: string, payload?: any) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/groups/${groupId}/action`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, ...(payload || {}) })
-      });
-      await res.json();
+      if (action === "clear_all") {
+        const res = await fetch("/api/groups/clear-all", { method: "POST" });
+        await res.json();
+        setToastMessage({
+          title: "🗑️ បានលុប Group ទាំងអស់",
+          body: "ទិន្នន័យក្រុមចាស់ៗទាំងអស់ត្រូវបានសម្អាតចេញពីប្រព័ន្ធដោយជោគជ័យ។"
+        });
+      } else if (action === "sync_from_telegram") {
+        const res = await fetch("/api/groups/sync-from-telegram", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ manualInput: payload?.manualInput })
+        });
+        const syncData = await res.json();
+        setToastMessage({
+          title: syncData.newly_imported_count > 0 ? "🎉 បាន Sync ក្រុមដោយជោគជ័យ" : "✅ បាន Sync ពិនិត្យបញ្ជីក្រុមរួចរាល់",
+          body: syncData.message || `បានរកឃើញ ${syncData.total_discovered || 0} ក្រុម។`
+        });
+        if (payload?.onComplete) {
+          payload.onComplete(syncData);
+        }
+      } else {
+        const res = await fetch(`/api/groups/${groupId}/action`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, ...(payload || {}) })
+        });
+        await res.json();
+        if (action === "delete") {
+          setToastMessage({
+            title: "🗑️ បានលុប Group",
+            body: `Group ID ${groupId} ត្រូវបានលុបចេញពីប្រព័ន្ធដោយជោគជ័យ។`
+          });
+        } else if (action === "direct_add") {
+          setToastMessage({
+            title: "✅ បានបន្ថែម Group ថ្មី",
+            body: `Group "${payload?.title || groupId}" ត្រូវបានបន្ថែម និងកំណត់អាជ្ញាប័ណ្ណជោគជ័យ។`
+          });
+        } else if (action === "approve_trial_7d" || action === "add_trial_7d") {
+          setToastMessage({
+            title: "🎁 បានអនុញ្ញាតប្រើសាកល្បង ៧ ថ្ងៃ",
+            body: `Group ID ${groupId} ទទួលបានអាជ្ញាប័ណ្ណសាកល្បងឥតគិតថ្លៃរយៈពេល ៧ ថ្ងៃដោយជោគជ័យ!`
+          });
+        } else if (action === "set_lifetime") {
+          setToastMessage({
+            title: "👑 បានកំណត់ Lifetime VIP",
+            body: `Group ID ${groupId} ត្រូវបានដំឡើងជា VIP ពេញមួយជីវិត!`
+          });
+        } else if (action === "add_days") {
+          setToastMessage({
+            title: `➕ បានបន្ថែម ${payload?.days || 30} ថ្ងៃ`,
+            body: `បានពន្យារអាជ្ញាប័ណ្ណចំនួន ${payload?.days || 30} ថ្ងៃសម្រាប់ Group ID ${groupId}!`
+          });
+        } else if (action === "revoke") {
+          setToastMessage({
+            title: "🔴 បានដកសិទ្ធិ (Revoked)",
+            body: `បានផ្អាកសិទ្ធិប្រើប្រាស់សម្រាប់ Group ID ${groupId}!`
+          });
+        }
+      }
       await fetchData();
     } catch (err) {
       console.error("Group action failed:", err);
@@ -550,7 +604,9 @@ export default function App() {
             />
           )}
 
-          {activeTab === "clients" && <ClientCRMView clients={clients} />}
+          {activeTab === "clients" && (
+            <ClientCRMView clients={clients} onGroupAction={handleGroupAction} />
+          )}
 
           {activeTab === "logs" && (
             <SecurityLogsView

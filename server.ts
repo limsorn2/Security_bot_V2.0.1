@@ -92,9 +92,234 @@ app.get("/api/groups", (_req, res) => {
   res.json(groups);
 });
 
+// Clear all groups endpoint (for master reset)
+app.post("/api/groups/clear-all", (_req, res) => {
+  writeJsonFile(GROUPS_FILE, {});
+  writeJsonFile(CLIENTS_FILE, {});
+  res.json({ success: true, message: "All groups and client records have been cleared." });
+});
+
+// Sync and Import Groups from Telegram Bot API & Activity Logs
+app.post("/api/groups/sync-from-telegram", async (req, res) => {
+  const { manualInput } = req.body;
+  const groups = readJsonFile<Record<string, any>>(GROUPS_FILE, {});
+  const clients = readJsonFile<Record<string, any>>(CLIENTS_FILE, {});
+  const settings = readJsonFile(SETTINGS_FILE, DEFAULT_SETTINGS);
+  const logs = readJsonFile<any[]>(LOGS_FILE, []);
+
+  const botToken = process.env.BOT_TOKEN || (settings as any).bot_token;
+  const nowStr = new Date().toISOString().replace("T", " ").substring(0, 19);
+
+  const discoveredChats: Map<string, { title: string; username?: string; type?: string; source: string }> = new Map();
+
+  // 1. Scan historical logs for chat_ids
+  for (const log of logs) {
+    if (log.chat_id && String(log.chat_id) !== "0" && String(log.chat_id) !== "undefined") {
+      const cid = String(log.chat_id);
+      discoveredChats.set(cid, {
+        title: log.chat_title || `Group ${cid}`,
+        source: "Activity Logs"
+      });
+    }
+  }
+
+  // 2. Parse manual input (e.g. pasted IDs, links, usernames)
+  if (manualInput && typeof manualInput === "string") {
+    const rawTokens = manualInput.split(/[\n,; ]+/).map((t) => t.trim()).filter(Boolean);
+    for (const token of rawTokens) {
+      let cleanId = token;
+      // Match -100xxxx pattern
+      const idMatch = token.match(/-100\d{9,14}/);
+      if (idMatch) {
+        cleanId = idMatch[0];
+        discoveredChats.set(cleanId, {
+          title: `Group ${cleanId}`,
+          source: "Manual Paste"
+        });
+      } else if (token.startsWith("@") || token.includes("t.me/")) {
+        const username = token.replace(/^https?:\/\/t\.me\//, "@");
+        discoveredChats.set(username, {
+          title: username,
+          username: username,
+          source: "Telegram Link / Username"
+        });
+      } else if (/^\d+$/.test(token)) {
+        cleanId = `-100${token}`;
+        discoveredChats.set(cleanId, {
+          title: `Group ${cleanId}`,
+          source: "Manual ID"
+        });
+      }
+    }
+  }
+
+  // 3. Query Telegram Bot getUpdates API if Bot Token is provided
+  if (botToken && !botToken.includes("YOUR_BOT_TOKEN")) {
+    try {
+      const updatesRes = await fetch(
+        `https://api.telegram.org/bot${botToken}/getUpdates?limit=100&allowed_updates=["message","my_chat_member","chat_member","channel_post","edited_message"]`
+      );
+      const updatesData = await updatesRes.json();
+
+      if (updatesData.ok && Array.isArray(updatesData.result)) {
+        for (const update of updatesData.result) {
+          const chat =
+            update.message?.chat ||
+            update.my_chat_member?.chat ||
+            update.chat_member?.chat ||
+            update.channel_post?.chat ||
+            update.edited_message?.chat;
+
+          if (chat && chat.id) {
+            const cid = String(chat.id);
+            const title = chat.title || chat.first_name || `Group ${cid}`;
+            const username = chat.username ? `@${chat.username}` : undefined;
+            const type = chat.type;
+
+            discoveredChats.set(cid, {
+              title: title,
+              username: username,
+              type: type,
+              source: "Telegram Bot API (getUpdates)"
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Error fetching getUpdates from Telegram:", e);
+    }
+  }
+
+  // Process discovered chats and resolve via getChat if possible
+  const newlyImported: any[] = [];
+  const alreadyExisting: any[] = [];
+
+  for (const [key, initialInfo] of discoveredChats.entries()) {
+    let resolvedChatId = key;
+    let resolvedTitle = initialInfo.title;
+    let resolvedUsername = initialInfo.username;
+
+    // If key is a username/link or we have a bot token, try resolving real metadata via Telegram getChat
+    if (botToken && !botToken.includes("YOUR_BOT_TOKEN")) {
+      try {
+        const tgRes = await fetch(
+          `https://api.telegram.org/bot${botToken}/getChat?chat_id=${encodeURIComponent(key)}`
+        );
+        const tgData = await tgRes.json();
+        if (tgData.ok && tgData.result) {
+          resolvedChatId = String(tgData.result.id);
+          resolvedTitle = tgData.result.title || tgData.result.first_name || resolvedTitle;
+          resolvedUsername = tgData.result.username ? `@${tgData.result.username}` : resolvedUsername;
+        }
+      } catch (err) {
+        console.warn(`Failed getChat for ${key}:`, err);
+      }
+    }
+
+    if (groups[resolvedChatId]) {
+      // Group already exists in database - update title/username if fresher
+      if (resolvedTitle && (!groups[resolvedChatId].title || groups[resolvedChatId].title.startsWith("Group -"))) {
+        groups[resolvedChatId].title = resolvedTitle;
+        if (clients[resolvedChatId]) clients[resolvedChatId].client_group_name = resolvedTitle;
+      }
+      if (resolvedUsername && !groups[resolvedChatId].added_by_username) {
+        groups[resolvedChatId].added_by_username = resolvedUsername;
+      }
+      alreadyExisting.push({
+        id: resolvedChatId,
+        title: groups[resolvedChatId].title,
+        status: groups[resolvedChatId].is_authorized ? "Active" : "Pending",
+        plan_type: groups[resolvedChatId].plan_type
+      });
+    } else {
+      // New group found! Add to database as Pending 7-Day Trial
+      groups[resolvedChatId] = {
+        title: resolvedTitle || `Group ${resolvedChatId}`,
+        chat_id: parseInt(resolvedChatId, 10) || resolvedChatId,
+        added_at: nowStr,
+        is_authorized: false,
+        is_enabled: false,
+        plan_type: "🎁 Pending Approval (រង់ចាំ Admin អនុញ្ញាត ៧ ថ្ងៃ)",
+        is_lifetime: false,
+        activated_date: "Not Yet Activated",
+        expiry_date: "Not Yet Activated",
+        last_reminder_ts: Date.now() / 1000,
+        added_by_id: "240224709",
+        added_by_name: "Auto-Synced Group",
+        added_by_username: resolvedUsername || "@admin",
+        threats_blocked_count: 0
+      };
+
+      clients[resolvedChatId] = {
+        client_group_id: parseInt(resolvedChatId, 10) || resolvedChatId,
+        client_group_name: groups[resolvedChatId].title,
+        registered_date: nowStr,
+        activated_date: "Not Yet Activated",
+        expiry_date: "Not Yet Activated",
+        plan_type: "🎁 Pending Approval (រង់ចាំ Admin អនុញ្ញាត ៧ ថ្ងៃ)",
+        is_lifetime: false,
+        license_status: "🟡 PENDING APPROVAL (រង់ចាំ Admin អនុញ្ញាត ៧ ថ្ងៃ)",
+        customer_contact: {
+          name: groups[resolvedChatId].added_by_name,
+          user_id: String(groups[resolvedChatId].added_by_id),
+          username: groups[resolvedChatId].added_by_username
+        },
+        purchase_history: [
+          {
+            package: "Auto-Imported from Telegram",
+            purchased_date: nowStr,
+            duration: "Pending Admin Approval",
+            status: "Imported"
+          }
+        ],
+        security_stats: { threats_blocked: 0, spams_blocked: 0, last_incident: "Imported from Bot Sync" }
+      };
+
+      newlyImported.push({
+        id: resolvedChatId,
+        title: groups[resolvedChatId].title,
+        username: resolvedUsername,
+        source: initialInfo.source,
+        plan_type: groups[resolvedChatId].plan_type
+      });
+    }
+  }
+
+  writeJsonFile(GROUPS_FILE, groups);
+  writeJsonFile(CLIENTS_FILE, clients);
+
+  res.json({
+    success: true,
+    total_discovered: discoveredChats.size,
+    newly_imported_count: newlyImported.length,
+    already_existing_count: alreadyExisting.length,
+    newly_imported: newlyImported,
+    already_existing: alreadyExisting,
+    groups: groups,
+    message: newlyImported.length > 0
+      ? `🎉 បានស្វែងរកឃើញ ${discoveredChats.size} ក្រុម និងបានទាញបញ្ចូល ${newlyImported.length} ក្រុមថ្មីចូលក្នុងបញ្ជីដោយជោគជ័យ!`
+      : `✅ បានពិនិត្យរួចរាល់! គ្រប់ក្រុមសរុប ${alreadyExisting.length} មានវត្តមាននៅក្នុងបញ្ជីគ្រប់គ្រងរួចហើយ។`
+  });
+});
+
+// Delete group endpoint (DELETE HTTP method)
+app.delete("/api/groups/:id", (req, res) => {
+  const { id } = req.params;
+  const groups = readJsonFile<Record<string, any>>(GROUPS_FILE, {});
+  const clients = readJsonFile<Record<string, any>>(CLIENTS_FILE, {});
+
+  delete groups[id];
+  delete clients[id];
+
+  writeJsonFile(GROUPS_FILE, groups);
+  writeJsonFile(CLIENTS_FILE, clients);
+
+  res.json({ success: true, message: `Group ${id} deleted` });
+});
+
 app.post("/api/groups/:id/action", (req, res) => {
   const { id } = req.params;
-  const { action, days, planType, isLifetime, title, addedByName, addedByUsername, addedById } = req.body;
+  const { action, days, planType, isLifetime, isEnabled, isAuthorized, title, addedByName, addedByUsername, addedById } = req.body;
   const groups = readJsonFile<Record<string, any>>(GROUPS_FILE, {});
   const clients = readJsonFile<Record<string, any>>(CLIENTS_FILE, {});
 
@@ -103,10 +328,85 @@ app.post("/api/groups/:id/action", (req, res) => {
 
   if (action === "delete") {
     delete groups[id];
+    delete clients[id];
     writeJsonFile(GROUPS_FILE, groups);
+    writeJsonFile(CLIENTS_FILE, clients);
     return res.json({ success: true, message: `Group ${id} deleted` });
   }
 
+  if (action === "direct_add") {
+    const isLife = isLifetime === true || planType === "Lifetime";
+    let expStr = "Not Yet Activated";
+    let actDate = "Not Yet Activated";
+    const authStatus = isAuthorized !== false;
+    const enableStatus = isEnabled !== false;
+
+    if (isLife) {
+      expStr = "Lifetime";
+      actDate = nowStr;
+    } else if (days && Number(days) > 0) {
+      const expDate = new Date();
+      expDate.setDate(expDate.getDate() + Number(days));
+      expStr = expDate.toISOString().replace("T", " ").substring(0, 19);
+      actDate = nowStr;
+    }
+
+    const assignedPlan = isLife
+      ? "👑 Lifetime VIP (ពេញមួយជីវិត)"
+      : days === 7
+      ? "🎁 Free Trial 7 Days (សាកល្បង ៧ ថ្ងៃ)"
+      : days
+      ? `Plan ${days} Days (កញ្ចប់ ${days} ថ្ងៃ)`
+      : planType || "🎁 Free Trial 7 Days (សាកល្បង ៧ ថ្ងៃ)";
+
+    groups[id] = {
+      title: title || `Group ${id}`,
+      chat_id: parseInt(id, 10) || id,
+      added_at: nowStr,
+      is_authorized: authStatus,
+      is_enabled: enableStatus,
+      plan_type: assignedPlan,
+      is_lifetime: isLife,
+      activated_date: actDate,
+      expiry_date: expStr,
+      last_reminder_ts: Date.now() / 1000,
+      added_by_id: addedById || 240224709,
+      added_by_name: addedByName || "Group Admin",
+      added_by_username: addedByUsername || "@admin",
+      threats_blocked_count: 0
+    };
+
+    clients[id] = {
+      client_group_id: parseInt(id, 10) || id,
+      client_group_name: groups[id].title,
+      registered_date: nowStr,
+      activated_date: actDate,
+      expiry_date: expStr,
+      plan_type: assignedPlan,
+      is_lifetime: isLife,
+      license_status: authStatus && enableStatus ? (days === 7 ? "🟢 ACTIVE TRIAL (សាកល្បង ៧ ថ្ងៃ)" : "🟢 ACTIVE (បានទិញសិទ្ធិ)") : "🟡 PENDING (រង់ចាំ Admin អនុញ្ញាត)",
+      customer_contact: {
+        name: groups[id].added_by_name,
+        user_id: String(groups[id].added_by_id),
+        username: groups[id].added_by_username
+      },
+      purchase_history: [
+        {
+          package: assignedPlan,
+          purchased_date: nowStr,
+          duration: isLife ? "Unlimited" : `${days || 7} Days`,
+          status: authStatus ? "Active" : "Pending"
+        }
+      ],
+      security_stats: { threats_blocked: 0, spams_blocked: 0, last_incident: "None" }
+    };
+
+    writeJsonFile(GROUPS_FILE, groups);
+    writeJsonFile(CLIENTS_FILE, clients);
+    return res.json({ success: true, group: groups[id], client: clients[id] });
+  }
+
+  // If group does not exist yet (e.g. Bot just added to group via auto-sync)
   if (!groups[id]) {
     groups[id] = {
       title: title || `Group ${id}`,
@@ -114,21 +414,76 @@ app.post("/api/groups/:id/action", (req, res) => {
       added_at: nowStr,
       is_authorized: false,
       is_enabled: false,
-      plan_type: "Trial / Inactive",
+      plan_type: "🎁 Pending Approval (រង់ចាំ Admin អនុញ្ញាត ៧ ថ្ងៃ)",
       is_lifetime: false,
       activated_date: "Not Yet Activated",
       expiry_date: "Not Yet Activated",
       last_reminder_ts: Date.now() / 1000,
       added_by_id: addedById || 240224709,
-      added_by_name: addedByName || "Master Super Admin",
-      added_by_username: addedByUsername || "@master_admin",
+      added_by_name: addedByName || "Group Admin",
+      added_by_username: addedByUsername || "@admin",
       threats_blocked_count: 0
+    };
+  }
+
+  // Always ensure client record exists in CRM database
+  if (!clients[id]) {
+    clients[id] = {
+      client_group_id: parseInt(id, 10) || id,
+      client_group_name: groups[id].title,
+      registered_date: groups[id].added_at || nowStr,
+      activated_date: groups[id].activated_date || "Not Yet Activated",
+      expiry_date: groups[id].expiry_date || "Not Yet Activated",
+      plan_type: groups[id].plan_type || "🎁 Pending Approval (រង់ចាំ Admin អនុញ្ញាត ៧ ថ្ងៃ)",
+      is_lifetime: groups[id].is_lifetime || false,
+      license_status: groups[id].is_authorized
+        ? (groups[id].plan_type.includes("Trial") ? "🟢 ACTIVE TRIAL (សាកល្បង ៧ ថ្ងៃ)" : "🟢 ACTIVE (បានទិញសិទ្ធិ)")
+        : "🟡 PENDING APPROVAL (រង់ចាំ Admin អនុញ្ញាត ៧ ថ្ងៃ)",
+      customer_contact: {
+        name: groups[id].added_by_name || "Group Admin",
+        user_id: String(groups[id].added_by_id || "N/A"),
+        username: groups[id].added_by_username || "@admin"
+      },
+      purchase_history: [
+        {
+          package: "Telegram Group Auto-Registered",
+          purchased_date: nowStr,
+          duration: "Pending Admin Approval",
+          status: "Pending"
+        }
+      ],
+      security_stats: { threats_blocked: 0, spams_blocked: 0, last_incident: "Bot Added to Group" }
     };
   }
 
   const group = groups[id];
 
-  if (action === "add_days") {
+  if (action === "approve_trial_7d" || action === "add_trial_7d") {
+    // 🎁 អនុញ្ញាតឱ្យប្រើសាកល្បង ៧ ថ្ងៃដោយឥតគិតថ្លៃ (7-Day Free Trial)
+    const expDate = new Date();
+    expDate.setDate(expDate.getDate() + 7);
+    const expStr = expDate.toISOString().replace("T", " ").substring(0, 19);
+
+    group.is_authorized = true;
+    group.is_enabled = true;
+    group.is_lifetime = false;
+    group.plan_type = "🎁 Free Trial 7 Days (សាកល្បង ៧ ថ្ងៃ)";
+    group.activated_date = nowStr;
+    group.expiry_date = expStr;
+
+    clients[id].license_status = "🟢 ACTIVE TRIAL (សាកល្បង ៧ ថ្ងៃ)";
+    clients[id].expiry_date = expStr;
+    clients[id].activated_date = nowStr;
+    clients[id].plan_type = group.plan_type;
+    clients[id].is_lifetime = false;
+    clients[id].purchase_history = clients[id].purchase_history || [];
+    clients[id].purchase_history.push({
+      package: "🎁 Free Trial 7 Days (សាកល្បង ៧ ថ្ងៃ)",
+      purchased_date: nowStr,
+      duration: "7 Days Free Trial",
+      status: "Active Trial"
+    });
+  } else if (action === "add_days") {
     const daysToAdd = Number(days) || 30;
     let baseDate = new Date();
     if (group.expiry_date && group.expiry_date !== "Lifetime" && group.expiry_date !== "Not Yet Activated") {
@@ -143,33 +498,16 @@ app.post("/api/groups/:id/action", (req, res) => {
     group.is_authorized = true;
     group.is_enabled = true;
     group.is_lifetime = false;
-    group.plan_type = `Plan ${daysToAdd} Days (កញ្ចប់ ${daysToAdd} ថ្ងៃ)`;
+    group.plan_type = daysToAdd === 7
+      ? "🎁 Free Trial 7 Days (សាកល្បង ៧ ថ្ងៃ)"
+      : `Plan ${daysToAdd} Days (កញ្ចប់ ${daysToAdd} ថ្ងៃ)`;
     group.expiry_date = expStr;
     if (group.activated_date === "Not Yet Activated") {
       group.activated_date = nowStr;
     }
 
     // Sync CRM
-    if (!clients[id]) {
-      clients[id] = {
-        client_group_id: parseInt(id, 10) || id,
-        client_group_name: group.title,
-        registered_date: nowStr,
-        activated_date: nowStr,
-        expiry_date: expStr,
-        plan_type: group.plan_type,
-        is_lifetime: false,
-        license_status: "🟢 ACTIVE (បានទិញសិទ្ធិ)",
-        customer_contact: {
-          name: group.added_by_name || "Group Admin",
-          user_id: String(group.added_by_id || "N/A"),
-          username: group.added_by_username || "N/A"
-        },
-        purchase_history: [],
-        security_stats: { threats_blocked: 0, spams_blocked: 0, last_incident: "None" }
-      };
-    }
-    clients[id].license_status = "🟢 ACTIVE (បានទិញសិទ្ធិ)";
+    clients[id].license_status = daysToAdd === 7 ? "🟢 ACTIVE TRIAL (សាកល្បង ៧ ថ្ងៃ)" : "🟢 ACTIVE (បានទិញសិទ្ធិ)";
     clients[id].expiry_date = expStr;
     clients[id].plan_type = group.plan_type;
     clients[id].is_lifetime = false;
@@ -190,25 +528,6 @@ app.post("/api/groups/:id/action", (req, res) => {
       group.activated_date = nowStr;
     }
 
-    if (!clients[id]) {
-      clients[id] = {
-        client_group_id: parseInt(id, 10) || id,
-        client_group_name: group.title,
-        registered_date: nowStr,
-        activated_date: nowStr,
-        expiry_date: "Lifetime",
-        plan_type: "👑 Lifetime VIP",
-        is_lifetime: true,
-        license_status: "🟢 ACTIVE (បានទិញសិទ្ធិ)",
-        customer_contact: {
-          name: group.added_by_name || "Master Super Admin",
-          user_id: String(group.added_by_id || "240224709"),
-          username: group.added_by_username || "@master_admin"
-        },
-        purchase_history: [],
-        security_stats: { threats_blocked: 0, spams_blocked: 0, last_incident: "None" }
-      };
-    }
     clients[id].license_status = "🟢 ACTIVE (បានទិញសិទ្ធិ)";
     clients[id].expiry_date = "Lifetime";
     clients[id].plan_type = "👑 Lifetime VIP (ពេញមួយជីវិត)";
@@ -228,13 +547,50 @@ app.post("/api/groups/:id/action", (req, res) => {
       clients[id].license_status = "🔴 UNAUTHORIZED (បានដកសិទ្ធិ)";
     }
   } else if (action === "toggle_enable") {
-    group.is_enabled = !group.is_enabled;
+    // If admin is turning ON an unactivated group, grant 7-day free trial automatically!
+    if (!group.is_enabled && (!group.is_authorized || group.expiry_date === "Not Yet Activated")) {
+      const expDate = new Date();
+      expDate.setDate(expDate.getDate() + 7);
+      const expStr = expDate.toISOString().replace("T", " ").substring(0, 19);
+
+      group.is_authorized = true;
+      group.is_enabled = true;
+      group.is_lifetime = false;
+      group.plan_type = "🎁 Free Trial 7 Days (សាកល្បង ៧ ថ្ងៃ)";
+      group.activated_date = nowStr;
+      group.expiry_date = expStr;
+
+      if (clients[id]) {
+        clients[id].license_status = "🟢 ACTIVE TRIAL (សាកល្បង ៧ ថ្ងៃ)";
+        clients[id].expiry_date = expStr;
+        clients[id].activated_date = nowStr;
+        clients[id].plan_type = group.plan_type;
+        clients[id].purchase_history = clients[id].purchase_history || [];
+        clients[id].purchase_history.push({
+          package: "🎁 Free Trial 7 Days (Admin Approved)",
+          purchased_date: nowStr,
+          duration: "7 Days Free Trial",
+          status: "Active Trial"
+        });
+      }
+    } else {
+      group.is_enabled = !group.is_enabled;
+      if (clients[id]) {
+        if (!group.is_enabled) {
+          clients[id].license_status = "🟡 PAUSED (បានផ្អាក)";
+        } else {
+          clients[id].license_status = group.plan_type.includes("Trial")
+            ? "🟢 ACTIVE TRIAL (សាកល្បង ៧ ថ្ងៃ)"
+            : "🟢 ACTIVE (បានទិញសិទ្ធិ)";
+        }
+      }
+    }
   }
 
   writeJsonFile(GROUPS_FILE, groups);
   writeJsonFile(CLIENTS_FILE, clients);
 
-  res.json({ success: true, group: groups[id] });
+  res.json({ success: true, group: groups[id], client: clients[id] });
 });
 
 app.get("/api/clients", (_req, res) => {
@@ -639,7 +995,7 @@ app.post("/api/tools/find-group-id", async (req, res) => {
   }
 
   // 3. Try resolving via Telegram Bot API if bot token exists
-  const botToken = process.env.BOT_TOKEN || settings.bot_token;
+  const botToken = process.env.BOT_TOKEN || (settings as any).bot_token;
   if (botToken && !botToken.includes("YOUR_BOT_TOKEN")) {
     try {
       const tgChatParam = cleanQuery.startsWith("@") ? cleanQuery : `@${cleanQuery.replace(/^https:\/\/t\.me\//, "")}`;
