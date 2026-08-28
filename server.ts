@@ -758,6 +758,69 @@ app.post("/api/settings", (req, res) => {
   res.json({ success: true, settings: updated });
 });
 
+// Setup Telegram Bot Menu Button & Commands directly via Telegram Bot API
+app.post("/api/bot/setup-menu-commands", async (_req, res) => {
+  const settings = readJsonFile(SETTINGS_FILE, DEFAULT_SETTINGS);
+  const botToken = process.env.BOT_TOKEN || (settings as any).bot_token;
+
+  if (!botToken || botToken.includes("YOUR_BOT_TOKEN")) {
+    return res.status(400).json({
+      success: false,
+      error: "សូមកំណត់ BOT_TOKEN ជាមុនសិននៅក្នុង Settings ឬ Environment Secrets!"
+    });
+  }
+
+  const commands = [
+    { command: "start", description: "🚀 ចាប់ផ្ដើម & បើកម៉ឺនុយមេ (Main Menu)" },
+    { command: "id", description: "🆔 ឆែកមើល Group ID & User ID ភ្លាមៗ" },
+    { command: "status", description: "📊 ពិនិត្យស្ថានភាពប្រព័ន្ធ & អាជ្ញាប័ណ្ណ" },
+    { command: "rules", description: "🛡️ គោលការណ៍សុវត្ថិភាពគ្រុប" },
+    { command: "help", description: "📖 សៀវភៅជំនួយ & របៀបប្រើប្រាស់" }
+  ];
+
+  try {
+    // 1. Register commands into Telegram Bot API
+    const cmdRes = await fetch(`https://api.telegram.org/bot${botToken}/setMyCommands`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commands })
+    });
+    const cmdData = await cmdRes.json();
+
+    // 2. Set Menu Button in Telegram Chat (shows [/] Menu at bottom left)
+    const menuRes = await fetch(`https://api.telegram.org/bot${botToken}/setChatMenuButton`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        menu_button: {
+          type: "commands"
+        }
+      })
+    });
+    const menuData = await menuRes.json();
+
+    if (cmdData.ok) {
+      return res.json({
+        success: true,
+        message: "🎉 បានកំណត់ និងដំឡើងប៊ូតុង Menu Commands ក្នុង Telegram App ដោយជោគជ័យ!",
+        commands,
+        telegram_response: { commands: cmdData, menu_button: menuData }
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        error: cmdData.description || "Telegram Bot API error",
+        raw: cmdData
+      });
+    }
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      error: err.message || "Failed to contact Telegram API"
+    });
+  }
+});
+
 // Malware Scanner Simulation
 app.post("/api/scan", (req, res) => {
   const { fileName, fileSize } = req.body;

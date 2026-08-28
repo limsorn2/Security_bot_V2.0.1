@@ -25,7 +25,12 @@ import {
   Upload,
   FileJson,
   Check,
-  Laptop
+  Laptop,
+  Bot,
+  Send,
+  Terminal,
+  ExternalLink,
+  Copy
 } from "lucide-react";
 
 interface SettingsViewProps {
@@ -62,9 +67,49 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [backupStatusMessage, setBackupStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const backupFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Telegram Menu Commands Setup states
+  const [isSettingUpMenu, setIsSettingUpMenu] = useState(false);
+  const [menuSetupStatus, setMenuSetupStatus] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [copiedCmds, setCopiedCmds] = useState(false);
+
   useEffect(() => {
     setFormData(settings);
   }, [settings]);
+
+  const handleSetupTelegramMenu = async () => {
+    setIsSettingUpMenu(true);
+    setMenuSetupStatus(null);
+    try {
+      const res = await fetch("/api/bot/setup-menu-commands", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        setMenuSetupStatus({
+          type: "success",
+          text: data.message || "🎉 បានដំឡើងប៊ូតុង Menu លើ Telegram App ដោយជោគជ័យ!"
+        });
+        setTimeout(() => setMenuSetupStatus(null), 7000);
+      } else {
+        setMenuSetupStatus({
+          type: "error",
+          text: data.error || "មិនអាចកំណត់ Menu Commands បានទេ សូមពិនិត្យ BOT_TOKEN!"
+        });
+      }
+    } catch (err: any) {
+      setMenuSetupStatus({
+        type: "error",
+        text: err.message || "បរាជ័យក្នុងការតភ្ជាប់ទៅ Telegram API"
+      });
+    } finally {
+      setIsSettingUpMenu(false);
+    }
+  };
+
+  const handleCopyCommandsList = () => {
+    const list = `start - 🚀 ចាប់ផ្ដើម & បើកម៉ឺនុយមេ (Main Menu)\nid - 🆔 ឆែក Group ID & User ID\nstatus - 📊 ពិនិត្យស្ថានភាពប្រព័ន្ធ & អាជ្ញាប័ណ្ណ\nrules - 🛡️ គោលការណ៍សុវត្ថិភាពគ្រុប\nhelp - 📖 សៀវភៅជំនួយ & របៀបប្រើប្រាស់`;
+    navigator.clipboard.writeText(list);
+    setCopiedCmds(true);
+    setTimeout(() => setCopiedCmds(false), 2500);
+  };
 
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -728,6 +773,149 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         {/* Right Column: Extensions, Notifications, Credentials (5/12) */}
         <div className="lg:col-span-5 space-y-6">
+          {/* Card: Telegram Bot Command Menu & Interactive Buttons */}
+          <div className="bg-white border-2 border-[#2481cc]/30 rounded-xl p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#e1e5eb]">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-[#2481cc]/10 text-[#2481cc] rounded-lg">
+                  <Bot className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-[#1c2733]">ប៊ូតុង Menu & ពាក្យបញ្ជាលើ Telegram App</h3>
+                  <p className="text-[11px] text-[#708499]">ដំឡើង Menu Button [/] និង Interactive Buttons ក្នុង Telegram</p>
+                </div>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 bg-blue-50 text-[#2481cc] border border-blue-200 rounded">
+                App Menu
+              </span>
+            </div>
+
+            {/* Quick Sync Button to Telegram API */}
+            <div className="p-3.5 bg-gradient-to-br from-[#2481cc]/5 to-sky-50 border border-[#2481cc]/20 rounded-xl space-y-2.5">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-bold text-[#1c2733] flex items-center gap-1.5">
+                    <Send className="w-3.5 h-3.5 text-[#2481cc]" />
+                    <span>Auto-Setup Menu លើ Telegram App</span>
+                  </h4>
+                  <p className="text-[11px] text-[#708499] mt-0.5">
+                    ចុចប៊ូតុងនេះដើម្បីឱ្យ Bot បញ្ជូនបញ្ជីពាក្យបញ្ជាទៅកាន់ Telegram API ដោយស្វ័យប្រវត្តិ
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSetupTelegramMenu}
+                disabled={isSettingUpMenu}
+                className="w-full bg-[#2481cc] hover:bg-[#1b64a0] text-white py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm disabled:opacity-60"
+              >
+                {isSettingUpMenu ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>កំពុងដំឡើង Menu លើ Telegram...</span>
+                  </>
+                ) : (
+                  <>
+                    <Bot className="w-3.5 h-3.5" />
+                    <span>⚡ ដំឡើង Menu Commands លើ Telegram ភ្លាមៗ</span>
+                  </>
+                )}
+              </button>
+
+              {menuSetupStatus && (
+                <div
+                  className={`p-2.5 rounded-lg text-xs flex items-center gap-2 font-medium ${
+                    menuSetupStatus.type === "success"
+                      ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
+                      : "bg-rose-50 border border-rose-200 text-rose-800"
+                  }`}
+                >
+                  {menuSetupStatus.type === "success" ? (
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  )}
+                  <span>{menuSetupStatus.text}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Visual Preview of Telegram Interactive Buttons */}
+            <div className="space-y-2">
+              <label className="block text-[11px] font-bold text-[#1c2733]">
+                ប៊ូតុងចុចអន្តរកម្មលើសារឆាត (Interactive Inline Keyboards):
+              </label>
+              <div className="p-3 bg-[#1c2733] rounded-xl border border-[#2d3b4a] space-y-2">
+                <div className="text-[10px] text-sky-400 font-mono flex items-center justify-between pb-1 border-b border-white/10">
+                  <span>📱 Telegram Message Preview</span>
+                  <span>Inline Keyboards</span>
+                </div>
+                <div className="text-[11px] text-white/90 font-mono leading-relaxed">
+                  🛡️ <b>Security_bot_V2.0.1</b> ផ្ទាំងគ្រប់គ្រងសន្តិសុខគ្រុប
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 pt-1">
+                  <div className="bg-[#2b394a] text-sky-300 text-[11px] py-1.5 px-2 rounded font-semibold text-center border border-sky-400/20">
+                    🆔 ឆែក ID ក្រុម & ខ្ញុំ
+                  </div>
+                  <div className="bg-[#2b394a] text-emerald-300 text-[11px] py-1.5 px-2 rounded font-semibold text-center border border-emerald-400/20">
+                    📊 ស្ថានភាពប្រព័ន្ធ
+                  </div>
+                  <div className="bg-[#2b394a] text-amber-300 text-[11px] py-1.5 px-2 rounded font-semibold text-center border border-amber-400/20">
+                    🛡️ គោលការណ៍ការពារ
+                  </div>
+                  <div className="bg-[#2b394a] text-purple-300 text-[11px] py-1.5 px-2 rounded font-semibold text-center border border-purple-400/20">
+                    📖 សៀវភៅជំនួយ
+                  </div>
+                </div>
+                <div className="bg-[#2481cc] text-white text-[11px] py-1.5 px-2 rounded font-bold text-center">
+                  ➕ Add Bot ទៅកាន់ Group ផ្សេងទៀត
+                </div>
+              </div>
+            </div>
+
+            {/* Fast BotFather Copy Block */}
+            <div className="space-y-1.5 pt-2 border-t border-[#e1e5eb]">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-[#1c2733] flex items-center gap-1">
+                  <Terminal className="w-3 h-3 text-[#708499]" />
+                  <span>បញ្ជីពាក្យបញ្ជាសម្រាប់ BotFather (Commands List):</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleCopyCommandsList}
+                  className="text-[11px] text-[#2481cc] hover:underline font-semibold flex items-center gap-1"
+                >
+                  {copiedCmds ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedCmds ? "បាន Copy!" : "Copy ទាំងអស់"}</span>
+                </button>
+              </div>
+
+              <div className="bg-[#f8fafc] border border-[#e1e5eb] rounded-lg p-2.5 font-mono text-[11px] text-[#1c2733] space-y-1">
+                <div className="flex items-center justify-between text-gray-700">
+                  <span className="font-bold text-[#2481cc]">start</span>
+                  <span className="text-gray-500">- 🚀 ចាប់ផ្ដើម & បើកម៉ឺនុយមេ</span>
+                </div>
+                <div className="flex items-center justify-between text-gray-700">
+                  <span className="font-bold text-[#2481cc]">id</span>
+                  <span className="text-gray-500">- 🆔 ឆែក Group ID & User ID</span>
+                </div>
+                <div className="flex items-center justify-between text-gray-700">
+                  <span className="font-bold text-[#2481cc]">status</span>
+                  <span className="text-gray-500">- 📊 ពិនិត្យស្ថានភាព & អាជ្ញាប័ណ្ណ</span>
+                </div>
+                <div className="flex items-center justify-between text-gray-700">
+                  <span className="font-bold text-[#2481cc]">rules</span>
+                  <span className="text-gray-500">- 🛡️ គោលការណ៍សន្តិសុខគ្រុប</span>
+                </div>
+                <div className="flex items-center justify-between text-gray-700">
+                  <span className="font-bold text-[#2481cc]">help</span>
+                  <span className="text-gray-500">- 📖 សៀវភៅជំនួយ & របៀបប្រើ</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Card 4: Blocked Extensions Manager */}
           <div className="bg-white border border-[#e1e5eb] rounded-xl p-5 shadow-sm space-y-3.5">
             <div className="flex items-center gap-2 pb-3 border-b border-[#e1e5eb]">

@@ -5,11 +5,18 @@ import logging
 import asyncio
 from collections import defaultdict
 import requests
-from telegram import Update
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    BotCommand,
+    MenuButtonCommands
+)
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     MessageHandler,
+    CallbackQueryHandler,
     ContextTypes,
     filters
 )
@@ -51,6 +58,30 @@ BLOCKED_EXTENSIONS = [
 ]
 
 user_message_timestamps = defaultdict(list)
+
+# ----------------- INLINE KEYBOARD BUTTON BUILDERS -----------------
+def get_main_menu_keyboard(bot_username: str = ""):
+    """បង្កើតប៊ូតុងបញ្ជាអន្តរកម្ម (Interactive Buttons) ក្នុង Telegram Chat"""
+    bot_link = f"https://t.me/{bot_username}?startgroup=true" if bot_username else "https://t.me/sornsecurityrobot"
+    
+    keyboard = [
+        [
+            InlineKeyboardButton("🆔 ឆែក ID ក្រុម & ខ្ញុំ", callback_data="btn_id"),
+            InlineKeyboardButton("📊 ស្ថានភាពប្រព័ន្ធ", callback_data="btn_status"),
+        ],
+        [
+            InlineKeyboardButton("🛡️ គោលការណ៍ការពារ", callback_data="btn_rules"),
+            InlineKeyboardButton("📖 សៀវភៅជំនួយ", callback_data="btn_help"),
+        ],
+        [
+            InlineKeyboardButton("➕ Add Bot ទៅកាន់ Group Telegram", url=bot_link),
+        ],
+        [
+            InlineKeyboardButton("🔄 Refresh ព័ត៌មាន", callback_data="btn_refresh"),
+            InlineKeyboardButton("👑 ទាក់ទង Admin", url="https://t.me/sornsecurityrobot"),
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
 
 # ----------------- 2-WAY SYNC HELPERS (Telegram <-> Web App) -----------------
 def sync_threat_log_to_dashboard(event_type: str, chat_id: str, chat_title: str, user_id: str, user_name: str, details: str, action: str):
@@ -94,30 +125,88 @@ async def auto_delete_message(bot, chat_id: int, message_id: int, delay_seconds:
 
 # ----------------- BOT COMMANDS -----------------
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    bot_info = await context.bot.get_me()
+    bot_username = bot_info.username or ""
+
     welcome_text = (
         "🛡️ <b>សូមស្វាគមន៍មកកាន់ Security_bot_V2.0.1!</b>\n\n"
-        "ប្រព័ន្ធការពារ និងគ្រប់គ្រងសន្តិសុខគ្រុប Telegram ស្វ័យប្រវត្តិកំពុងដំណើរការ។\n\n"
+        "ប្រព័ន្ធការពារ និងគ្រប់គ្រងសន្តិសុខគ្រុប Telegram ស្វ័យប្រវត្តិកំពុងដំណើរការ 24/7។\n\n"
         "✨ <b>មុខងារការពារសកម្ម & Auto-Sync៖</b>\n"
-        "• 🚫 Anti-Malware / Dangerous Files (.apk, .exe, ...)\n"
-        "• ⚡ Anti-Flood / Anti-Spam Auto Mute\n"
-        "• 🆔 ពិនិត្យ Group ID & User ID ភ្លាមៗ (វាយ <code>/id</code>)\n"
-        "• 🔄 Auto-Sync ជាមួយ Web Dashboard ពេលវេលាជាក់ស្តែង (Realtime)\n"
-        "• 🛡️ Realtime Group Audit & Protection\n\n"
-        "<i>សូម Add Bot ចូលក្នុងគ្រុបរបស់អ្នក រួចផ្ដល់សិទ្ធិជា Admin!</i>"
+        "• 🚫 Anti-Malware / Dangerous Files (.apk, .exe, .bat, ...)\n"
+        "• ⚡ Anti-Flood / Anti-Spam Auto Warning\n"
+        "• 🆔 ពិនិត្យ Group ID & User ID ភ្លាមៗ\n"
+        "• 🔄 Auto-Sync ជាមួយ Web Dashboard Realtime\n\n"
+        "👇 <b>សូមចុចប៊ូតុងបញ្ជាខាងក្រោម ដើម្បីប្រើប្រាស់មុខងារ៖</b>"
     )
     if update.message:
-        await update.message.reply_text(welcome_text, parse_mode="HTML")
+        await update.message.reply_text(
+            welcome_text,
+            parse_mode="HTML",
+            reply_markup=get_main_menu_keyboard(bot_username)
+        )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    bot_info = await context.bot.get_me()
+    bot_username = bot_info.username or ""
+
     help_text = (
         "📖 <b>បញ្ជីពាក្យបញ្ជា Security_bot_V2.0.1:</b>\n\n"
+        "🔹 <code>/start</code> - បើកផ្ទាំងបញ្ជា & ប៊ូតុងចុចអន្តរកម្ម\n"
         "🔹 <code>/id</code> ឬ <code>/groupid</code> - ឆែកមើល Group ID & User ID\n"
         "🔹 <code>/status</code> - ពិនិត្យមើលស្ថានភាពប្រព័ន្ធសុវត្ថិភាព\n"
         "🔹 <code>/rules</code> - មើលគោលការណ៍សន្តិសុខគ្រុប\n"
-        "🔹 <code>/help</code> - បង្ហាញជំនួយនេះ"
+        "🔹 <code>/help</code> - បង្ហាញជំនួយនេះ\n\n"
+        "👇 <i>លោកអ្នកក៏អាចចុចលើប៊ូតុងរហ័សខាងក្រោមបានផងដែរ៖</i>"
     )
     if update.message:
-        await update.message.reply_text(help_text, parse_mode="HTML")
+        await update.message.reply_text(
+            help_text,
+            parse_mode="HTML",
+            reply_markup=get_main_menu_keyboard(bot_username)
+        )
+
+async def rules_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    bot_info = await context.bot.get_me()
+    bot_username = bot_info.username or ""
+
+    rules_text = (
+        "🛡️ <b>គោលការណ៍សុវត្ថិភាពគ្រុប (Security Rules)</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "1. 🚫 <b>ហាមដាច់ខាត:</b> ផ្ញើ File មេរោគ (.apk, .exe, .cmd, .scr, .bat...)\n"
+        "2. ⚡ <b>ហាម Spam:</b> ផ្ញើសារ Flood ញាប់លើសកំណត់ក្នុងគ្រុប\n"
+        "3. 🔗 <b>ហាម Phishing:</b> ផ្ញើ Link បោកប្រាស់ ឬផ្សព្វផ្សាយខុសច្បាប់\n"
+        "4. ⚖️ <b>វិធានការ:</b> ប្រព័ន្ធនឹងលុបសារ និងកំហិតសិទ្ធិដោយស្វ័យប្រវត្តិ!\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "✅ <i>Security_bot_V2.0.1 ការពារសុវត្ថិភាពសមាជិកគ្រប់ពេលវេលា!</i>"
+    )
+    if update.message:
+        await update.message.reply_text(
+            rules_text,
+            parse_mode="HTML",
+            reply_markup=get_main_menu_keyboard(bot_username)
+        )
+
+async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    bot_info = await context.bot.get_me()
+    bot_username = bot_info.username or ""
+
+    status_text = (
+        "📊 <b>ស្ថានភាពប្រព័ន្ធសន្តិសុខ (System Status)</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🛡️ <b>Bot Engine:</b> Security_bot_V2.0.1 (Online ✅)\n"
+        "🚫 <b>Anti-Malware:</b> Active (.apk, .exe, .bat, .js...)\n"
+        "⚡ <b>Anti-Flood:</b> Active (Limit 5 msgs / 4s)\n"
+        "🔄 <b>2-Way CRM Sync:</b> Online Realtime\n"
+        f"👑 <b>Super Admin:</b> ID <code>{ADMIN_ID}</code>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🟢 <i>ប្រព័ន្ធកំពុងដំណើរការការពារគ្រុប 24/7!</i>"
+    )
+    if update.message:
+        await update.message.reply_text(
+            status_text,
+            parse_mode="HTML",
+            reply_markup=get_main_menu_keyboard(bot_username)
+        )
 
 async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.effective_message
@@ -126,6 +215,8 @@ async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     chat = update.effective_chat
     user = update.effective_user
+    bot_info = await context.bot.get_me()
+    bot_username = bot_info.username or ""
 
     chat_id = str(chat.id) if chat else "Unknown"
     chat_title = chat.title if chat and chat.title else "Private Chat"
@@ -147,7 +238,11 @@ async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🛡️ <i>Security_bot_V2.0.1 កំពុងការពារគ្រុបនេះដោយស្វ័យប្រវត្តិ!</i>"
     )
 
-    sent_msg = await message.reply_text(response_text, parse_mode="HTML")
+    await message.reply_text(
+        response_text,
+        parse_mode="HTML",
+        reply_markup=get_main_menu_keyboard(bot_username)
+    )
 
     if chat and chat.type in ["group", "supergroup"]:
         sync_group_status(
@@ -157,6 +252,93 @@ async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             added_by_username=username,
             added_by_id=user_id
         )
+
+# ----------------- CALLBACK QUERY HANDLER (Button Clicks) -----------------
+async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    if not query:
+        return
+
+    data = query.data
+    chat = update.effective_chat
+    user = update.effective_user
+    bot_info = await context.bot.get_me()
+    bot_username = bot_info.username or ""
+
+    if data == "btn_id":
+        await query.answer("🆔 កំពុងទាញយកព័ត៌មាន ID...")
+        chat_id = str(chat.id) if chat else "Unknown"
+        chat_title = chat.title if chat and chat.title else "Private Chat"
+        user_id = str(user.id) if user else "Unknown"
+        user_name = user.first_name if user else "User"
+
+        text = (
+            "🆔 <b>ព័ត៌មានអត្តសញ្ញាណ (ID & Chat Info)</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            f"👥 <b>ឈ្មោះក្រុម:</b> <code>{chat_title}</code>\n"
+            f"📍 <b>Group ID:</b> <code>{chat_id}</code>  <i>(ចុចដើម្បី Copy)</i>\n\n"
+            f"👤 <b>អ្នកស្នើសុំ:</b> {user_name}\n"
+            f"🔑 <b>User ID:</b> <code>{user_id}</code>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "🛡️ <i>ចុចប៊ូតុងខាងក្រោមដើម្បីជ្រើសរើសមុខងារផ្សេងទៀត៖</i>"
+        )
+        try:
+            await query.edit_message_text(text, parse_mode="HTML", reply_markup=get_main_menu_keyboard(bot_username))
+        except Exception:
+            pass
+
+    elif data == "btn_status":
+        await query.answer("📊 ពិនិត្យស្ថានភាពប្រព័ន្ធ...")
+        text = (
+            "📊 <b>ស្ថានភាពប្រព័ន្ធសន្តិសុខ (System Status)</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "🛡️ <b>Bot Engine:</b> Security_bot_V2.0.1 (Online ✅)\n"
+            "🚫 <b>Anti-Malware:</b> Active (.apk, .exe, .bat, .js...)\n"
+            "⚡ <b>Anti-Flood:</b> Active (Limit 5 msgs / 4s)\n"
+            "🔄 <b>2-Way CRM Sync:</b> Online Realtime\n"
+            f"👑 <b>Super Admin:</b> ID <code>{ADMIN_ID}</code>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "🟢 <i>ប្រព័ន្ធកំពុងដំណើរការការពារគ្រុប 24/7!</i>"
+        )
+        try:
+            await query.edit_message_text(text, parse_mode="HTML", reply_markup=get_main_menu_keyboard(bot_username))
+        except Exception:
+            pass
+
+    elif data == "btn_rules":
+        await query.answer("🛡️ គោលការណ៍សន្តិសុខ...")
+        text = (
+            "🛡️ <b>គោលការណ៍សុវត្ថិភាពគ្រុប (Security Rules)</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "1. 🚫 <b>ហាមដាច់ខាត:</b> ផ្ញើ File មេរោគ (.apk, .exe, .cmd, .scr, .bat...)\n"
+            "2. ⚡ <b>ហាម Spam:</b> ផ្ញើសារ Flood ញាប់លើសកំណត់ក្នុងគ្រុប\n"
+            "3. 🔗 <b>ហាម Phishing:</b> ផ្ញើ Link បោកប្រាស់ ឬផ្សព្វផ្សាយខុសច្បាប់\n"
+            "4. ⚖️ <b>វិធានការ:</b> ប្រព័ន្ធនឹងលុបសារ និងកំហិតសិទ្ធិដោយស្វ័យប្រវត្តិ!\n"
+            "━━━━━━━━━━━━━━━━━━━━"
+        )
+        try:
+            await query.edit_message_text(text, parse_mode="HTML", reply_markup=get_main_menu_keyboard(bot_username))
+        except Exception:
+            pass
+
+    elif data == "btn_help":
+        await query.answer("📖 សៀវភៅជំនួយ...")
+        text = (
+            "📖 <b>សៀវភៅជំនួយ & ពាក្យបញ្ជា (Bot Help)</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "🔹 <code>/start</code> - បើកផ្ទាំងបញ្ជា & ប៊ូតុងចុចអន្តរកម្ម\n"
+            "🔹 <code>/id</code> - ឆែក Group ID & User ID ភ្លាមៗ\n"
+            "🔹 <code>/status</code> - ឆែកស្ថានភាពប្រព័ន្ធ & អាជ្ញាប័ណ្ណ\n"
+            "🔹 <code>/rules</code> - មើលគោលការណ៍សន្តិសុខគ្រុប\n"
+            "━━━━━━━━━━━━━━━━━━━━"
+        )
+        try:
+            await query.edit_message_text(text, parse_mode="HTML", reply_markup=get_main_menu_keyboard(bot_username))
+        except Exception:
+            pass
+
+    elif data == "btn_refresh":
+        await query.answer("🔄 ធ្វើបច្ចុប្បន្នភាពទិន្នន័យរួចរាល់!", show_alert=True)
 
 async def chat_member_update_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.effective_message
@@ -283,10 +465,31 @@ async def message_inspector(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.warning(f"Error handling flood: {e}")
 
-def main():
-    logger.info("🚀 កំពុងចាប់ផ្តើម Security_bot_V2.0.1 ជាមួយ Webhook សម្រាប់ Render...")
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+# ----------------- TELEGRAM BOT MENU SETUP (POST_INIT) -----------------
+async def post_init_setup(application):
+    """កំណត់ Bot Command Menu & Menu Button ក្នុង Telegram App ដោយស្វ័យប្រវត្តិ"""
+    try:
+        commands = [
+            BotCommand("start", "🚀 ចាប់ផ្ដើម & បើកម៉ឺនុយមេ"),
+            BotCommand("id", "🆔 ឆែក Group ID & User ID"),
+            BotCommand("status", "📊 ពិនិត្យស្ថានភាពប្រព័ន្ធ & ការពារ"),
+            BotCommand("rules", "🛡️ គោលការណ៍សន្តិសុខគ្រុប"),
+            BotCommand("help", "📖 សៀវភៅជំនួយ & របៀបប្រើ"),
+        ]
+        await application.bot.set_my_commands(commands)
+        logger.info("✅ បានដំឡើង Telegram Bot Commands Menu (Menu Button) ដោយជោគជ័យ!")
+        try:
+            await application.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+        except Exception as err:
+            logger.debug(f"MenuButtonCommands note: {err}")
+    except Exception as e:
+        logger.warning(f"Failed to auto-register bot commands menu: {e}")
 
+def main():
+    logger.info("🚀 កំពុងចាប់ផ្តើម Security_bot_V2.0.1 ជាមួយ Interactive Buttons & Webhook...")
+    app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init_setup).build()
+
+    # Commands
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("id", id_command))
@@ -294,7 +497,13 @@ def main():
     app.add_handler(CommandHandler("myid", id_command))
     app.add_handler(CommandHandler("chatid", id_command))
     app.add_handler(CommandHandler("info", id_command))
-    app.add_handler(CommandHandler("status", id_command))
+    app.add_handler(CommandHandler("status", status_command))
+    app.add_handler(CommandHandler("rules", rules_command))
+    
+    # Callback Query (Buttons)
+    app.add_handler(CallbackQueryHandler(callback_query_handler))
+
+    # Message / Status Handlers
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, chat_member_update_handler))
     app.add_handler(MessageHandler(filters.Document.ALL, file_inspector))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_inspector))
