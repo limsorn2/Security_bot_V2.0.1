@@ -124,15 +124,16 @@ export const SecurityLogsView: React.FC<SecurityLogsViewProps> = ({
 
   // Professional Security Report CSV Export with UTF-8 BOM
   const handleExportCSV = () => {
+    // Standard and comprehensive column headers
     const headers = [
-      "Timestamp (UTC/Local)",
-      "Incident / Event Type",
-      "Chat / Group Title",
+      "Timestamp",
+      "Chat Title",
+      "User ID",
+      "Blocked Content / Threat Type",
       "Chat ID",
       "Sender User Name",
-      "Sender User ID",
-      "Threat Details / Malware Signature",
-      "Mitigation / Action Taken",
+      "Incident Details",
+      "Mitigation Action",
       "Security Severity Level"
     ];
 
@@ -141,13 +142,23 @@ export const SecurityLogsView: React.FC<SecurityLogsViewProps> = ({
       const isFlood = log.event_type.includes("FLOOD");
       const severity = isMalware ? "CRITICAL (High Threat)" : isFlood ? "MEDIUM (Anti-Spam)" : "INFORMATIONAL";
 
+      // Detect blocked content type explicitly
+      let blockedContentType = log.event_type || "Threat Incident";
+      const details = (log.details || "").toLowerCase();
+      if (details.includes(".apk")) blockedContentType = "Android Malware (.apk)";
+      else if (details.includes(".exe")) blockedContentType = "Windows Executable (.exe)";
+      else if (details.includes(".scr")) blockedContentType = "Screensaver Payload (.scr)";
+      else if (details.includes(".bat")) blockedContentType = "Batch Script (.bat)";
+      else if (isFlood || details.includes("flood") || details.includes("spam")) blockedContentType = "Anti-Flood / Spam";
+      else if (details.includes("virustotal")) blockedContentType = "VirusTotal Malicious Hash";
+
       return [
         `"${(log.timestamp || "").replace(/"/g, '""')}"`,
-        `"${(log.event_type || "").replace(/"/g, '""')}"`,
         `"${(log.chat_title || "").replace(/"/g, '""')}"`,
+        `"${(log.user_id || "").replace(/"/g, '""')}"`,
+        `"${blockedContentType.replace(/"/g, '""')}"`,
         `"${(log.chat_id || "").replace(/"/g, '""')}"`,
         `"${(log.user_name || "").replace(/"/g, '""')}"`,
-        `"${(log.user_id || "").replace(/"/g, '""')}"`,
         `"${(log.details || "").replace(/"/g, '""')}"`,
         `"${(log.action || "").replace(/"/g, '""')}"`,
         `"${severity}"`

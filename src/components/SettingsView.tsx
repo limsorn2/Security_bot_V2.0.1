@@ -641,6 +641,40 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 ))}
               </div>
 
+              {/* Number Input Field: Custom days specification */}
+              <div className="p-3 bg-white border border-[#e1e5eb] rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <label htmlFor="custom_cleanup_days_input" className="text-xs font-bold text-[#1c2733] block">
+                    ឬកំណត់ចំនួនថ្ងៃផ្ទាល់ខ្លួន (Custom Days Input):
+                  </label>
+                  <span className="text-[11px] text-[#708499] block">
+                    កំណត់ចំនួនថ្ងៃជាក់លាក់ណាមួយ (ឧទាហរណ៍៖ 7 ថ្ងៃ, 14 ថ្ងៃ, 45 ថ្ងៃ, 180 ថ្ងៃ)
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <input
+                      id="custom_cleanup_days_input"
+                      type="number"
+                      min="1"
+                      max="3650"
+                      value={formData.cleanup_interval_days || ""}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        setFormData({
+                          ...formData,
+                          cleanup_interval_days: isNaN(val) ? 0 : Math.max(0, val)
+                        });
+                      }}
+                      placeholder="30"
+                      className="w-28 bg-[#f8fafc] border border-[#e1e5eb] focus:border-[#2481cc] rounded-lg px-3 py-1.5 text-xs font-mono font-bold text-[#1c2733] text-center focus:outline-none"
+                    />
+                  </div>
+                  <span className="text-xs font-bold text-[#708499]">ថ្ងៃ (Days)</span>
+                </div>
+              </div>
+
               {/* Manual Purge Action */}
               <div className="p-3 bg-[#f8fafc] rounded-lg border border-[#e1e5eb] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 mt-2">
                 <div className="flex items-center gap-2">

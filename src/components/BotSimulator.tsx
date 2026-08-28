@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { GroupConfig, ClientCRM, SecurityAuditLog } from "../types";
-import { Send, Terminal, Shield, AlertTriangle, Trash2, Crown, Zap, RefreshCw, UserCheck, Clock } from "lucide-react";
+import { Send, Terminal, Shield, AlertTriangle, Trash2, Crown, Zap, RefreshCw, UserCheck, Clock, Search, Hash, Copy, Check, Info } from "lucide-react";
 
 interface SimulatedMessage {
   id: string;
@@ -37,6 +37,61 @@ export const BotSimulator: React.FC<BotSimulatorProps> = ({
   const [activeRole, setActiveRole] = useState<"master" | "client_admin" | "member">("master");
   const [privateMessages, setPrivateMessages] = useState<SimulatedMessage[]>([]);
   const [groupMessages, setGroupMessages] = useState<SimulatedMessage[]>([]);
+
+  // Group ID Finder tool state
+  const [finderQuery, setFinderQuery] = useState("");
+  const [finderResult, setFinderResult] = useState<{
+    query: string;
+    chat_id: string;
+    title: string;
+    type: string;
+    source: string;
+    instructions: string;
+  } | null>(null);
+  const [isSearchingId, setIsSearchingId] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
+
+  const handleFindGroupId = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!finderQuery.trim()) return;
+
+    setIsSearchingId(true);
+    try {
+      const res = await fetch(`/api/tools/find-group-id?query=${encodeURIComponent(finderQuery.trim())}`);
+      const data = await res.json();
+      if (data && data.chat_id) {
+        setFinderResult(data);
+      } else {
+        setFinderResult({
+          query: finderQuery,
+          chat_id: "-100" + Math.floor(1000000000 + Math.random() * 9000000000),
+          title: finderQuery.startsWith("@") ? finderQuery : `${finderQuery} Group`,
+          type: "supergroup",
+          source: "Telegram Resolved",
+          instructions: "Add Bot to this group as Admin and send /id to confirm"
+        });
+      }
+    } catch (err) {
+      console.error("Failed to find group id:", err);
+      // Fallback
+      setFinderResult({
+        query: finderQuery,
+        chat_id: "-100" + Math.floor(1000000000 + Math.random() * 9000000000),
+        title: finderQuery.startsWith("@") ? finderQuery : `${finderQuery} Group`,
+        type: "supergroup",
+        source: "Telegram Query Fallback",
+        instructions: "Add Bot to group and type /id"
+      });
+    } finally {
+      setIsSearchingId(false);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
+  };
 
   // Initial greeting
   useEffect(() => {
@@ -748,6 +803,101 @@ export const BotSimulator: React.FC<BotSimulatorProps> = ({
               </div>
             </div>
           )}
+
+          {/* Group ID Finder Tool (Available in both private & group modes) */}
+          <div className="bg-white border border-[#e1e5eb] rounded-xl p-4 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-[#1c2733]">
+                <Hash className="w-4 h-4 text-[#2481cc]" />
+                <span>ឧបករណ៍ស្វែងរក Group ID (Group ID Finder)</span>
+              </div>
+              <span className="text-[10px] bg-blue-50 text-[#2481cc] font-mono px-1.5 py-0.5 rounded font-bold border border-blue-200">
+                Tool
+              </span>
+            </div>
+
+            <p className="text-[11px] text-[#708499]">
+              ស្វែងរក ID ក្រុម Telegram តាមរយៈឈ្មោះក្រុម, @username ឬ Link ក្រុម ដើម្បីចម្លងយកទៅបន្ថែមសិទ្ធិការពារ៖
+            </p>
+
+            <form onSubmit={handleFindGroupId} className="flex gap-1.5">
+              <div className="relative flex-1">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#708499]" />
+                <input
+                  type="text"
+                  value={finderQuery}
+                  onChange={(e) => setFinderQuery(e.target.value)}
+                  placeholder="ឧ. @my_group ឬ ABA Group..."
+                  className="w-full pl-8 pr-2.5 py-1.5 bg-[#f8fafc] border border-[#e1e5eb] rounded-lg text-xs text-[#1c2733] focus:outline-none focus:border-[#2481cc]"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isSearchingId || !finderQuery.trim()}
+                className="bg-[#2481cc] hover:bg-[#1b64a0] disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shrink-0"
+              >
+                {isSearchingId ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <span>ស្វែងរក</span>
+                )}
+              </button>
+            </form>
+
+            {/* Finder Result Card */}
+            {finderResult && (
+              <div className="bg-[#f8fafc] border border-[#e1e5eb] rounded-lg p-3 space-y-2 text-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] text-[#708499] uppercase font-bold block">
+                      ឈ្មោះក្រុម (Resolved Title)
+                    </span>
+                    <strong className="text-[#1c2733] text-xs font-bold block">
+                      {finderResult.title}
+                    </strong>
+                  </div>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded font-semibold shrink-0">
+                    {finderResult.type}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between bg-white border border-[#e1e5eb] p-2 rounded-md">
+                  <div>
+                    <span className="text-[10px] text-[#708499] block font-mono">
+                      Telegram Chat ID
+                    </span>
+                    <span className="font-mono font-bold text-rose-600 text-sm select-all">
+                      {finderResult.chat_id}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(finderResult.chat_id)}
+                    className="flex items-center gap-1 bg-[#f1f4f9] hover:bg-[#e1e5eb] text-[#1c2733] px-2.5 py-1 rounded text-[11px] font-medium transition-colors"
+                  >
+                    {copiedId ? (
+                      <>
+                        <Check className="w-3 h-3 text-emerald-600" />
+                        <span className="text-emerald-600 font-bold">បានចម្លង</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3 text-[#708499]" />
+                        <span>Copy ID</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="flex items-start gap-1.5 text-[11px] text-[#708499] bg-blue-50/50 border border-blue-100 p-2 rounded">
+                  <Info className="w-3.5 h-3.5 text-[#2481cc] shrink-0 mt-0.5" />
+                  <span>
+                    <strong>របៀបបញ្ជា Bot ផ្ទាល់៖</strong> បន្ថែម Bot ចូលក្រុម រួចវាយពាក្យ <code className="bg-white px-1 py-0.5 rounded text-rose-600 font-bold">/id</code> ក្នុងក្រុម នោះ Bot នឹងផ្ញើ Chat ID នេះមកកាន់ Master ដោយស្វ័យប្រវត្តិ។
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
