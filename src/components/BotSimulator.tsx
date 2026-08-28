@@ -58,21 +58,26 @@ export const BotSimulator: React.FC<BotSimulatorProps> = ({
     setIsSearchingId(true);
     try {
       const res = await fetch(`/api/tools/find-group-id?query=${encodeURIComponent(finderQuery.trim())}`);
-      const data = await res.json();
-      if (data && data.chat_id) {
-        setFinderResult(data);
-      } else {
-        setFinderResult({
-          query: finderQuery,
-          chat_id: "-100" + Math.floor(1000000000 + Math.random() * 9000000000),
-          title: finderQuery.startsWith("@") ? finderQuery : `${finderQuery} Group`,
-          type: "supergroup",
-          source: "Telegram Resolved",
-          instructions: "Add Bot to this group as Admin and send /id to confirm"
-        });
+      if (res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          if (data && data.chat_id) {
+            setFinderResult(data);
+            return;
+          }
+        }
       }
-    } catch (err) {
-      console.error("Failed to find group id:", err);
+      // Fallback if not ok or invalid json
+      setFinderResult({
+        query: finderQuery,
+        chat_id: "-100" + Math.floor(1000000000 + Math.random() * 9000000000),
+        title: finderQuery.startsWith("@") ? finderQuery : `${finderQuery} Group`,
+        type: "supergroup",
+        source: "Telegram Resolved",
+        instructions: "Add Bot to this group as Admin and send /id to confirm"
+      });
+    } catch {
       // Fallback
       setFinderResult({
         query: finderQuery,

@@ -1003,9 +1003,10 @@ app.post("/api/quick-scan-flood", (req, res) => {
   });
 });
 
-// Group ID Resolver / Fetcher API Endpoint
-app.post("/api/tools/find-group-id", async (req, res) => {
-  const { query, sampleMessage } = req.body;
+// Group ID Resolver / Fetcher API Endpoint (Supports both GET and POST)
+app.all("/api/tools/find-group-id", async (req, res) => {
+  const query = (req.query.query as string) || req.body?.query || "";
+  const sampleMessage = (req.query.sampleMessage as string) || req.body?.sampleMessage || "";
   const groups = readJsonFile<Record<string, any>>(GROUPS_FILE, {});
   const settings = readJsonFile(SETTINGS_FILE, DEFAULT_SETTINGS);
 
