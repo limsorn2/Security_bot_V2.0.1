@@ -24,7 +24,10 @@ FLOOD_MAX_MSGS="5"
 FLOOD_WINDOW_SECONDS="3"
 `;
 
-  const setupCommands = `# ១. ដំឡើង Python Libraries
+  const setupCommands = `# ១. ដំឡើង Python Libraries (ចាំបាច់ត្រូវមាន [webhooks] សម្រាប់ Render / Webhook Mode)
+pip install "python-telegram-bot[webhooks]>=20.0" requests aiohttp tornado
+
+# ឬដំឡើងតាម requirements.txt:
 pip install -r requirements.txt
 
 # ២. កំណត់ Configuration
@@ -32,7 +35,7 @@ cp .env.example .env
 # បញ្ចូល TELEGRAM_BOT_TOKEN និង SUPER_ADMIN_ID របស់អ្នក
 
 # ៣. ដំណើរការ Bot
-python telegram_security_bot.py
+python bot.py
 `;
 
   return (

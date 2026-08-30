@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { GroupConfig, ClientCRM, SecurityAuditLog, BotSettings, SystemHealthInfo } from "../types";
 import {
   Heart,
@@ -32,8 +32,33 @@ import {
   Copy,
   Radio,
   Clock,
-  Smartphone
+  Smartphone,
+  Camera,
+  Upload,
+  Image as ImageIcon,
+  RotateCcw,
+  Edit3,
+  Check
 } from "lucide-react";
+
+interface UserProfile {
+  name: string;
+  role: string;
+  avatarUrl: string;
+  telegramId: string;
+  email: string;
+}
+
+const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80";
+
+const PRESET_AVATARS = [
+  { label: "Classic Female", url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80" },
+  { label: "Tech Leader", url: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80" },
+  { label: "Executive Pro", url: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=200&auto=format&fit=crop&q=80" },
+  { label: "Cyber Shield", url: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80" },
+  { label: "Security Bot", url: "https://images.unsplash.com/photo-1614680376593-902f749f7ffc?w=200&auto=format&fit=crop&q=80" },
+  { label: "Khmer Hero", url: "https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=200&auto=format&fit=crop&q=80" }
+];
 
 interface MobileAppPortalProps {
   groups: Record<string, GroupConfig>;
@@ -71,6 +96,97 @@ export const MobileAppPortal: React.FC<MobileAppPortalProps> = ({
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showAndroidInstallModal, setShowAndroidInstallModal] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
+
+  // User Profile state with local persistence
+  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
+    try {
+      const saved = localStorage.getItem("sorn_bot_user_profile");
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error("Failed to parse saved profile", e);
+    }
+    return {
+      name: "LIM SORN",
+      role: "Master Super Admin",
+      avatarUrl: DEFAULT_AVATAR,
+      telegramId: "240224709",
+      email: "limsorn2@gmail.com"
+    };
+  });
+
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [tempProfileName, setTempProfileName] = useState(userProfile.name);
+  const [tempProfileRole, setTempProfileRole] = useState(userProfile.role);
+  const [tempAvatarUrl, setTempAvatarUrl] = useState(userProfile.avatarUrl);
+  const [customUrlInput, setCustomUrlInput] = useState("");
+  const [profileSaveSuccess, setProfileSaveSuccess] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Save profile helper
+  const handleSaveProfile = (newProfile?: Partial<UserProfile>) => {
+    const updated: UserProfile = {
+      ...userProfile,
+      name: tempProfileName.trim() || userProfile.name,
+      role: tempProfileRole.trim() || userProfile.role,
+      avatarUrl: tempAvatarUrl || userProfile.avatarUrl,
+      ...(newProfile || {})
+    };
+    setUserProfile(updated);
+    try {
+      localStorage.setItem("sorn_bot_user_profile", JSON.stringify(updated));
+    } catch (e) {
+      console.error("Failed to save profile to localStorage", e);
+    }
+    setProfileSaveSuccess(true);
+    setTimeout(() => {
+      setProfileSaveSuccess(false);
+      setShowEditProfileModal(false);
+    }, 800);
+  };
+
+  // Direct avatar change helper
+  const handleSelectAvatar = (url: string) => {
+    setTempAvatarUrl(url);
+  };
+
+  // File upload handler
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("ទំហំរូបភាពធំពេក សូមជ្រើសរើសរូបភាពក្រោម 5MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        const resultUrl = event.target.result as string;
+        setTempAvatarUrl(resultUrl);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Reset to default
+  const handleResetAvatar = () => {
+    setTempAvatarUrl(DEFAULT_AVATAR);
+    setTempProfileName("LIM SORN");
+    setTempProfileRole("Master Super Admin");
+  };
+
+  // Open modal & sync temporary states
+  const openProfileModal = () => {
+    setTempProfileName(userProfile.name);
+    setTempProfileRole(userProfile.role);
+    setTempAvatarUrl(userProfile.avatarUrl);
+    setCustomUrlInput("");
+    setProfileSaveSuccess(false);
+    setShowEditProfileModal(true);
+  };
 
   // Capture PWA install prompt on Android
   useEffect(() => {
@@ -374,36 +490,60 @@ export const MobileAppPortal: React.FC<MobileAppPortalProps> = ({
           {/* Profile Header Bar matching screenshot */}
           <div className="flex items-center justify-between mt-1">
             <div className="flex items-center gap-3">
-              {/* User Avatar */}
-              <div className="relative">
-                <div className="w-12 h-12 rounded-full border-2 border-white bg-slate-700 overflow-hidden shadow-md flex items-center justify-center">
+              {/* User Avatar - Clickable to change profile */}
+              <div 
+                onClick={openProfileModal}
+                className="relative cursor-pointer group"
+                title="ចុចដើម្បីប្ដូររូបប្រូហ្វាល (Click to change avatar)"
+              >
+                <div className="w-12 h-12 rounded-full border-2 border-white bg-slate-700 overflow-hidden shadow-md flex items-center justify-center relative group-hover:ring-2 group-hover:ring-amber-300 transition-all">
                   <img
-                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
-                    alt="LIM SORN"
+                    src={userProfile.avatarUrl}
+                    alt={userProfile.name}
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       // fallback to initials
                       (e.target as HTMLElement).style.display = "none";
                     }}
                   />
-                  <span className="font-bold text-white text-sm">LS</span>
+                  <span className="font-bold text-white text-sm">
+                    {userProfile.name.slice(0, 2).toUpperCase()}
+                  </span>
+                  
+                  {/* Subtle camera icon hover indicator */}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-full">
+                    <Camera className="w-4 h-4 text-white" />
+                  </div>
                 </div>
                 <span className="w-3.5 h-3.5 bg-emerald-400 border-2 border-white rounded-full absolute bottom-0 right-0"></span>
+                <span className="w-4 h-4 bg-amber-400 border border-white rounded-full absolute -top-1 -right-1 flex items-center justify-center text-[8px] text-slate-900 font-bold shadow-sm">
+                  <Camera className="w-2.5 h-2.5" />
+                </span>
               </div>
 
               {/* Name & Link */}
               <div>
                 <h2 className="font-extrabold text-base tracking-wide text-white flex items-center gap-1.5">
-                  LIM SORN
+                  {userProfile.name}
                   <Crown className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
                 </h2>
-                <button
-                  onClick={() => setActiveBottomTab("account")}
-                  className="text-xs text-white/80 hover:text-white flex items-center gap-0.5 transition-colors cursor-pointer"
-                >
-                  <span>View Profile</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setActiveBottomTab("account")}
+                    className="text-xs text-white/80 hover:text-white flex items-center gap-0.5 transition-colors cursor-pointer"
+                  >
+                    <span>View Profile</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-white/40 text-[10px]">•</span>
+                  <button
+                    onClick={openProfileModal}
+                    className="text-[10px] text-amber-200 hover:text-amber-100 flex items-center gap-0.5 underline decoration-amber-300/50"
+                  >
+                    <Edit3 className="w-2.5 h-2.5" />
+                    <span>ប្ដូររូប</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -693,27 +833,68 @@ export const MobileAppPortal: React.FC<MobileAppPortalProps> = ({
           {/* ================= TAB 4: ACCOUNT PROFILE ================= */}
           {activeBottomTab === "account" && (
             <div className="space-y-4 pt-2">
-              <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 text-center space-y-3">
-                <div className="w-20 h-20 rounded-full mx-auto border-4 border-blue-500 shadow-lg overflow-hidden bg-slate-800 flex items-center justify-center">
-                  <img
-                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"
-                    alt="LIM SORN"
-                    className="w-full h-full object-cover"
-                  />
+              <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 text-center space-y-3 relative overflow-hidden">
+                {/* Decorative header ribbon */}
+                <div className="absolute top-0 inset-x-0 h-16 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700"></div>
+
+                <div className="relative pt-3">
+                  {/* Clickable Profile Avatar */}
+                  <div
+                    onClick={openProfileModal}
+                    className="w-22 h-22 rounded-full mx-auto border-4 border-white shadow-xl overflow-hidden bg-slate-800 flex items-center justify-center relative cursor-pointer group"
+                    title="ចុចដើម្បីប្ដូររូបប្រូហ្វាល"
+                  >
+                    <img
+                      src={userProfile.avatarUrl}
+                      alt={userProfile.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = "none";
+                      }}
+                    />
+                    <span className="font-bold text-white text-xl">
+                      {userProfile.name.slice(0, 2).toUpperCase()}
+                    </span>
+
+                    {/* Camera overlay on hover */}
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity text-white text-[10px] font-bold">
+                      <Camera className="w-5 h-5 mb-0.5 text-amber-300" />
+                      <span>ប្ដូររូប</span>
+                    </div>
+
+                    <div className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] py-0.5 flex items-center justify-center gap-1">
+                      <Camera className="w-2.5 h-2.5" />
+                    </div>
+                  </div>
                 </div>
+
                 <div>
-                  <h3 className="font-extrabold text-base text-slate-800">LIM SORN</h3>
-                  <p className="text-xs text-blue-600 font-bold mt-0.5">Master Super Admin</p>
-                  <p className="text-[11px] text-slate-400 mt-1">limsorn2@gmail.com</p>
+                  <h3 className="font-extrabold text-lg text-slate-800 flex items-center justify-center gap-1.5">
+                    {userProfile.name}
+                    <Crown className="w-4 h-4 text-amber-400 fill-amber-400" />
+                  </h3>
+                  <p className="text-xs text-blue-600 font-bold mt-0.5">{userProfile.role}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5 font-mono">{userProfile.email}</p>
+                </div>
+
+                {/* Change Avatar Button */}
+                <div className="pt-2 flex justify-center">
+                  <button
+                    onClick={openProfileModal}
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-md flex items-center gap-2 active:scale-95 transition-transform"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-amber-300" />
+                    <span>ប្ដូររូបប្រូហ្វាល & កែប្រែឈ្មោះ</span>
+                  </button>
                 </div>
 
                 <div className="pt-3 border-t border-slate-100 flex justify-center gap-2">
                   <button
-                    onClick={() => handleCopy("240224709", "Admin ID")}
+                    onClick={() => handleCopy(userProfile.telegramId, "Admin ID")}
                     className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-xl font-mono flex items-center gap-1.5"
                   >
                     <Copy className="w-3 h-3" />
-                    <span>ID: 240224709</span>
+                    <span>ID: {userProfile.telegramId}</span>
                   </button>
                   <a
                     href="https://t.me/sornsecurityrobot"
@@ -722,7 +903,7 @@ export const MobileAppPortal: React.FC<MobileAppPortalProps> = ({
                     className="bg-blue-50 text-blue-700 text-xs px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5"
                   >
                     <Send className="w-3 h-3" />
-                    <span>Telegram</span>
+                    <span>Telegram Bot</span>
                   </a>
                 </div>
               </div>
@@ -1066,7 +1247,204 @@ export const MobileAppPortal: React.FC<MobileAppPortalProps> = ({
         </div>
       )}
 
-      {/* ================= ANDROID PWA INSTALLATION GUIDE MODAL ================= */}
+      {/* ================= EDIT PROFILE & AVATAR MODAL ================= */}
+      {showEditProfileModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center shadow-md">
+                  <Camera className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-800">ប្ដូររូបប្រូហ្វាល & ព័ត៌មាន</h3>
+                  <p className="text-[10px] text-blue-600 font-bold">Customize Profile & Avatar</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowEditProfileModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Hidden native file input */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept="image/*"
+              className="hidden"
+            />
+
+            {/* Avatar Preview & Upload Action */}
+            <div className="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-2xl border border-slate-200/80 text-center space-y-3">
+              <div className="relative group">
+                <div className="w-24 h-24 rounded-full border-4 border-blue-500 shadow-xl overflow-hidden bg-slate-800 flex items-center justify-center relative">
+                  <img
+                    src={tempAvatarUrl}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = "none";
+                    }}
+                  />
+                  <span className="font-bold text-white text-2xl">
+                    {tempProfileName.slice(0, 2).toUpperCase() || "LS"}
+                  </span>
+                </div>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-700 text-white border-2 border-white shadow-lg flex items-center justify-center transition-transform active:scale-95"
+                  title="ជ្រើសរើសរូបពីទូរស័ព្ទ / កុំព្យូទ័រ"
+                >
+                  <Camera className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Upload Buttons */}
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl shadow-sm flex items-center gap-1.5 active:scale-95 transition-all"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>ជ្រើសរើសរូបពីម៉ាស៊ីន (Upload)</span>
+                </button>
+
+                <button
+                  onClick={handleResetAvatar}
+                  className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold px-2.5 py-1.5 rounded-xl flex items-center gap-1 transition-colors"
+                  title="កំណត់រូបដើមឡើងវិញ"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>រូបដើម</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Preset Avatar Gallery */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <ImageIcon className="w-3.5 h-3.5 text-blue-600" />
+                <span>ឬជ្រើសរើសរូបតំណាងស្អាតៗ (Preset Avatars)៖</span>
+              </label>
+              <div className="grid grid-cols-6 gap-2">
+                {PRESET_AVATARS.map((preset, index) => {
+                  const isSelected = tempAvatarUrl === preset.url;
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => handleSelectAvatar(preset.url)}
+                      className={`relative rounded-2xl overflow-hidden aspect-square border-2 transition-all p-0.5 ${
+                        isSelected
+                          ? "border-blue-600 ring-2 ring-blue-300 scale-105 shadow-md"
+                          : "border-slate-200 hover:border-blue-400 opacity-80 hover:opacity-100"
+                      }`}
+                      title={preset.label}
+                    >
+                      <img
+                        src={preset.url}
+                        alt={preset.label}
+                        className="w-full h-full object-cover rounded-xl"
+                      />
+                      {isSelected && (
+                        <div className="absolute inset-0 bg-blue-600/30 flex items-center justify-center">
+                          <Check className="w-4 h-4 text-white drop-shadow" />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Custom Image URL Input */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">បញ្ចូលតំណភ្ជាប់រូបភាព (Image URL)៖</label>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  placeholder="https://example.com/avatar.jpg"
+                  value={customUrlInput}
+                  onChange={(e) => setCustomUrlInput(e.target.value)}
+                  className="flex-1 text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (customUrlInput.trim()) {
+                      setTempAvatarUrl(customUrlInput.trim());
+                    }
+                  }}
+                  className="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-xl"
+                >
+                  ប្រើ URL
+                </button>
+              </div>
+            </div>
+
+            {/* Name & Role Fields */}
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">ឈ្មោះបង្ហាញ (Display Name)៖</label>
+                <input
+                  type="text"
+                  value={tempProfileName}
+                  onChange={(e) => setTempProfileName(e.target.value)}
+                  className="w-full text-xs font-bold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="ឧ. LIM SORN"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700">តួនាទី (Role)៖</label>
+                <input
+                  type="text"
+                  value={tempProfileRole}
+                  onChange={(e) => setTempProfileRole(e.target.value)}
+                  className="w-full text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Master Super Admin"
+                />
+              </div>
+            </div>
+
+            {/* Save & Confirm Buttons */}
+            <div className="pt-2 flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowEditProfileModal(false)}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-xs transition-colors"
+              >
+                បោះបង់
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSaveProfile()}
+                className={`flex-1 font-bold py-2.5 rounded-xl text-xs transition-all shadow-md flex items-center justify-center gap-1.5 ${
+                  profileSaveSuccess
+                    ? "bg-emerald-600 text-white"
+                    : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white active:scale-95"
+                }`}
+              >
+                {profileSaveSuccess ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>បានរក្សាទុករួចរាល់!</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>រក្សាទុក (Save Profile)</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showAndroidInstallModal && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
