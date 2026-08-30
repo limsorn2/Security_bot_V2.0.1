@@ -13,6 +13,7 @@ import { SettingsView } from "./components/SettingsView";
 import { SystemHealthIndicator } from "./components/SystemHealthIndicator";
 import { SecurityScoreBadge } from "./components/SecurityScoreBadge";
 import { KeyboardShortcutsModal } from "./components/KeyboardShortcutsModal";
+import { MobileAppPortal } from "./components/MobileAppPortal";
 import {
   Shield,
   Search,
@@ -31,7 +32,8 @@ import {
   CheckCircle,
   AlertTriangle,
   HelpCircle,
-  Keyboard
+  Keyboard,
+  Smartphone
 } from "lucide-react";
 
 const DEFAULT_FALLBACK_SETTINGS: BotSettings = {
@@ -473,6 +475,22 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2.5">
+            {/* Mobile View Switcher Button */}
+            <button
+              onClick={() => setActiveTab(activeTab === "mobile_portal" ? "overview" : "mobile_portal")}
+              className={`p-2 rounded-lg border transition-all flex items-center gap-1.5 text-xs font-bold ${
+                activeTab === "mobile_portal"
+                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-600 shadow-sm"
+                  : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100"
+              }`}
+              title="ទិដ្ឋភាពទូរស័ព្ទ (Mobile Mini-Apps Portal)"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">
+                {activeTab === "mobile_portal" ? "ចេញពី Mobile View" : "📱 ផ្ទាំងទូរស័ព្ទ (Mobile UI)"}
+              </span>
+            </button>
+
             {/* Real-time Security Score Badge */}
             <SecurityScoreBadge logs={logs} groups={groups} />
 
@@ -552,7 +570,21 @@ export default function App() {
         </header>
 
         {/* Scrollable Main Content */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+        <main className={`flex-1 overflow-y-auto ${activeTab === "mobile_portal" ? "p-0 sm:p-4" : "p-4 sm:p-6"} space-y-6`}>
+          {activeTab === "mobile_portal" && (
+            <MobileAppPortal
+              groups={groups}
+              clients={clients}
+              logs={logs}
+              settings={settings}
+              healthInfo={healthInfo}
+              isLoading={isLoading}
+              onRefresh={fetchData}
+              onNavigateToTab={(tab) => setActiveTab(tab)}
+              onGroupAction={handleGroupAction}
+            />
+          )}
+
           {activeTab === "overview" && (
             <DashboardOverview
               groups={groups}

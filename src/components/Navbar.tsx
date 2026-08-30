@@ -13,7 +13,8 @@ import {
   ExternalLink,
   Sliders,
   Keyboard,
-  HelpCircle
+  HelpCircle,
+  Smartphone
 } from "lucide-react";
 
 interface NavbarProps {
@@ -34,6 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenHelp
 }) => {
   const navItems = [
+    { id: "mobile_portal", label: "📱 ផ្ទាំងទូរស័ព្ទ (Mobile Mini-Apps)", icon: Smartphone },
     { id: "overview", label: "ផ្ទាំងគ្រប់គ្រងទូទៅ (Dashboard)", icon: Radio },
     { id: "simulator", label: "ឧបករណ៍តេស្តឆាតបត (Simulator)", icon: Terminal },
     { id: "settings", label: "កំណត់ការកំណត់ប្រព័ន្ធ (Settings)", icon: Sliders },
