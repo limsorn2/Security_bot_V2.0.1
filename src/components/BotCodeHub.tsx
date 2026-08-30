@@ -1,15 +1,27 @@
 import React, { useState } from "react";
-import { Terminal, Copy, Check, Download, ExternalLink, Shield } from "lucide-react";
+import { Terminal, Copy, Check, ExternalLink, Shield, Database, Cloud, RefreshCw } from "lucide-react";
 
 export const BotCodeHub: React.FC = () => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [activeSubTab, setActiveSubTab] = useState<"python" | "env" | "setup">("python");
+  const [activeSubTab, setActiveSubTab] = useState<"python" | "env" | "setup" | "cloud_db">("cloud_db");
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
     setCopiedKey(key);
     setTimeout(() => setCopiedKey(null), 2000);
   };
+
+  const cloudDbMongoExample = `# 1. បង្កើត MongoDB Atlas Free Cluster (512MB M0 Free រហូត)
+# នៅលើ https://www.mongodb.com/cloud/atlas -> បង្កើត Cluster Free
+# ចុច 'Connect' -> 'Connect your application' -> ចម្លង Connection String
+
+# 2. បញ្ចូលក្នុង Render Environment Variables:
+MONGODB_URI="mongodb+srv://<username>:<password>@cluster0.mongodb.net/?retryWrites=true&w=majority"
+MONGODB_DB_NAME="sorn_security_bot"
+
+# ឬប្រសិនបើប្រើ PostgreSQL / Supabase Free:
+DATABASE_URL="postgresql://postgres:<password>@db.xxxxxx.supabase.co:5432/postgres"
+`;
 
   const envTemplate = `# TeleGuard Security Bot Configuration
 TELEGRAM_BOT_TOKEN="YOUR_BOT_TOKEN_FROM_BOTFATHER"
@@ -22,20 +34,28 @@ BOT_MSG_DELETE_SECONDS="30"
 ANTI_FLOOD_ENABLED="true"
 FLOOD_MAX_MSGS="5"
 FLOOD_WINDOW_SECONDS="3"
+
+# Cloud Database Persistence (រក្សាទិន្នន័យបានរហូត ១០០% មិនបាត់បង់ពេល Restart)
+MONGODB_URI="mongodb+srv://<username>:<password>@cluster0.mongodb.net/?retryWrites=true&w=majority"
+MONGODB_DB_NAME="sorn_security_bot"
 `;
 
-  const setupCommands = `# ១. ដំឡើង Python Libraries (ចាំបាច់ត្រូវមាន [webhooks] សម្រាប់ Render / Webhook Mode)
-pip install "python-telegram-bot[webhooks]>=20.0" requests aiohttp tornado
+  const setupCommands = `# ១. ដំឡើង Python Libraries (រួមទាំង Webhooks & Cloud DB)
+pip install "python-telegram-bot[webhooks]>=20.0" pymongo psycopg2-binary requests aiohttp tornado
 
 # ឬដំឡើងតាម requirements.txt:
 pip install -r requirements.txt
 
 # ២. កំណត់ Configuration
 cp .env.example .env
-# បញ្ចូល TELEGRAM_BOT_TOKEN និង SUPER_ADMIN_ID របស់អ្នក
 
 # ៣. ដំណើរការ Bot
 python bot.py
+
+# ៤. ពាក្យបញ្ជា Cloud Database លើ Telegram:
+# /dbstatus   - ឆែកមើលស្ថានភាព Cloud Database
+# /synccloud  - Force Sync ទិន្នន័យ
+# /backup     - ទាញយក Backup File .json ភ្លាមៗ
 `;
 
   return (
@@ -45,15 +65,26 @@ python bot.py
         <div>
           <h2 className="text-base font-bold text-[#1c2733] flex items-center gap-2">
             <Terminal className="w-4 h-4 text-[#2481cc]" />
-            <span>Python Source Code & Deployment Vault</span>
+            <span>Python Source Code & Cloud Database Vault</span>
           </h2>
           <p className="text-xs text-[#708499] mt-0.5">
-            កូដពេញលេញ ១០០% នៃឯកសារ <span className="font-mono text-[#2481cc]">telegram_security_bot.py</span>,{" "}
-            <span className="font-mono text-[#2481cc]">requirements.txt</span> និងការណែនាំដំឡើង
+            កូដពេញលេញ ១០០% នៃឯកសារ <span className="font-mono text-[#2481cc]">bot.py</span>,{" "}
+            <span className="font-mono text-[#2481cc]">MongoDB Atlas / PostgreSQL Cloud Sync</span> និងការណែនាំ
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 bg-[#f8fafc] p-1 rounded-lg border border-[#e1e5eb]">
+        <div className="flex flex-wrap items-center gap-1.5 bg-[#f8fafc] p-1 rounded-lg border border-[#e1e5eb]">
+          <button
+            onClick={() => setActiveSubTab("cloud_db")}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              activeSubTab === "cloud_db"
+                ? "bg-[#2481cc] text-white shadow-sm font-bold"
+                : "text-[#708499] hover:text-[#1c2733]"
+            }`}
+          >
+            <Cloud className="w-3.5 h-3.5" />
+            <span>Cloud Database (Free)</span>
+          </button>
           <button
             onClick={() => setActiveSubTab("python")}
             className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
@@ -62,7 +93,7 @@ python bot.py
                 : "text-[#708499] hover:text-[#1c2733]"
             }`}
           >
-            telegram_security_bot.py
+            bot.py Code
           </button>
           <button
             onClick={() => setActiveSubTab("env")}
@@ -72,7 +103,7 @@ python bot.py
                 : "text-[#708499] hover:text-[#1c2733]"
             }`}
           >
-            .env Configuration
+            .env Variables
           </button>
           <button
             onClick={() => setActiveSubTab("setup")}
@@ -82,10 +113,68 @@ python bot.py
                 : "text-[#708499] hover:text-[#1c2733]"
             }`}
           >
-            🚀 របៀប Run Bot
+            🚀 Run & Commands
           </button>
         </div>
       </div>
+
+      {/* Cloud DB Quick Banner */}
+      {activeSubTab === "cloud_db" && (
+        <div className="bg-gradient-to-br from-blue-900 to-indigo-950 text-white rounded-2xl p-5 shadow-lg border border-blue-800 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow">
+                <Database className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-sm sm:text-base">វិធីរក្សាទុកទិន្នន័យ Bot ជាប់រហូត ១០០% ជាមួយ Free Cloud Database</h3>
+                <p className="text-xs text-blue-200">គ្មានការបាត់បង់ទិន្នន័យទោះបីជា Render Restart រាប់ពាន់ដងក៏ដោយ!</p>
+              </div>
+            </div>
+            <a
+              href="https://www.mongodb.com/cloud/atlas/register"
+              target="_blank"
+              rel="noreferrer"
+              className="hidden sm:flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-all shadow"
+            >
+              <span>ចុះឈ្មោះ MongoDB Free</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+            <div className="bg-white/10 rounded-xl p-3 border border-white/10 space-y-1.5">
+              <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                <span className="w-5 h-5 rounded-full bg-amber-400/20 flex items-center justify-center text-[10px]">1</span>
+                <span>បង្កើត MongoDB Atlas Free</span>
+              </div>
+              <p className="text-[11px] text-slate-200">
+                ចុះឈ្មោះនៅ <span className="text-cyan-300 font-bold">mongodb.com</span> ជ្រើសរើស Free Tier M0 (512MB ឥតគិតថ្លៃរហូត)។
+              </p>
+            </div>
+
+            <div className="bg-white/10 rounded-xl p-3 border border-white/10 space-y-1.5">
+              <div className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                <span className="w-5 h-5 rounded-full bg-emerald-400/20 flex items-center justify-center text-[10px]">2</span>
+                <span>កំណត់លើ Render</span>
+              </div>
+              <p className="text-[11px] text-slate-200">
+                បន្ថែម Variable ឈ្មោះ <code className="bg-black/30 px-1 py-0.5 rounded text-emerald-200 font-mono">MONGODB_URI</code> ក្នុងផ្ទាំង Environment លើ Render។
+              </p>
+            </div>
+
+            <div className="bg-white/10 rounded-xl p-3 border border-white/10 space-y-1.5">
+              <div className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                <span className="w-5 h-5 rounded-full bg-cyan-400/20 flex items-center justify-center text-[10px]">3</span>
+                <span>Auto-Restore & Backup</span>
+              </div>
+              <p className="text-[11px] text-slate-200">
+                Bot នឹង Auto-Restore និង Sync ទៅ Cloud រាល់ពេលមានការផ្លាស់ប្តូរ និងផ្ញើ <code className="text-amber-200">/backup</code> លើ Telegram។
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Code Viewer Box */}
       <div className="bg-[#1c2733] border border-[#2d3b4a] rounded-xl overflow-hidden shadow-md">
@@ -95,17 +184,20 @@ python bot.py
             <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80"></span>
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></span>
             <span className="text-xs text-[#708499] font-mono pl-1.5">
-              {activeSubTab === "python"
-                ? "telegram_security_bot.py (Full 100% Commercial CRM Edition)"
+              {activeSubTab === "cloud_db"
+                ? "Cloud Database (MongoDB Atlas / PostgreSQL) Config"
+                : activeSubTab === "python"
+                ? "bot.py (Full 100% Commercial CRM Edition)"
                 : activeSubTab === "env"
                 ? ".env.example"
-                : "Terminal Commands"}
+                : "Terminal Commands & Telegram DB Management"}
             </span>
           </div>
 
           <button
             onClick={() => {
-              if (activeSubTab === "env") copyToClipboard(envTemplate, "env");
+              if (activeSubTab === "cloud_db") copyToClipboard(cloudDbMongoExample, "cloud_db");
+              else if (activeSubTab === "env") copyToClipboard(envTemplate, "env");
               else if (activeSubTab === "setup") copyToClipboard(setupCommands, "setup");
               else copyToClipboard("FULL_PYTHON_CODE_DOWNLOADED", "py");
             }}
@@ -117,34 +209,30 @@ python bot.py
         </div>
 
         <div className="p-4 font-mono text-xs text-slate-100 overflow-x-auto leading-relaxed max-h-[500px]">
+          {activeSubTab === "cloud_db" && <pre>{cloudDbMongoExample}</pre>}
           {activeSubTab === "env" && <pre>{envTemplate}</pre>}
           {activeSubTab === "setup" && <pre>{setupCommands}</pre>}
           {activeSubTab === "python" && (
             <pre>{`"""
 =============================================================================
-🛡️ TELEGRAM GROUP MALWARE & THREAT GUARD BOT (FULL COMMERCIAL CRM & CHANNEL)
+🛡️ TELEGRAM GROUP MALWARE & THREAT GUARD BOT (FULL COMMERCIAL CRM & CLOUD DB)
 =============================================================================
 Author: Cybersecurity & Telegram Defense Bot
 Sole Bot Owner: 240224709 (Master Super Admin)
 Official Channel: https://t.me/sornsecurityrobot (@sornsecurityrobot)
 
 Core Features:
-1. 📋 Client Database & CRM: មើលបញ្ជីអតិថិជន កញ្ចប់សេវា ថ្ងៃទិញ និងរយៈពេលនៅសល់
-2. 📜 Security & Purchase Logs: ប្រវត្តិកំចាត់មេរោគ និងប្រវត្តិទិញបតលម្អិត
-3. ⚙️ Interactive Group Profile & License Config:
-   - ចុចលើឈ្មោះ Group នីមួយៗក្នុង Dashboard ដើម្បីមើល៖
-     • ឈ្មោះ Group & ID, ឈ្មោះអតិថិជន & Contact
-     • ប្រវត្តិទិញបត, ថ្ងៃចាប់ផ្តើមទិញ, ថ្ងៃផុតកំណត់, រយៈពេលនៅសល់ (Days Left)
-   - ប៊ូតុងកំណត់សិទ្ធិ៖ [ ➕ 30 ថ្ងៃ ], [ ➕ 90 ថ្ងៃ ], [ 👑 ពេញមួយជីវិត ], [ 🔴 ដកសិទ្ធិ ], [ 🟢 បើក ], [ 🟡 ផ្អាក ], [ 🗑️ លុប ]
-4. 📢 Channel Marketing Broadcast: ផ្សាយពាណិជ្ជកម្មទៅកាន់ Channel @sornsecurityrobot ផ្ដាច់មុខ
-5. 🚀 Start Bot Button & Native Command Menu
-6. ⏱️ 30-Second Auto-Delete & Sweeper Watchdog
-7. 👻 Stealth Master Privacy: លាក់បាំងសកម្មភាព Master ក្នុង Group ១០០%
-8. 🛡️ Two-Tier Clean Isolation: Master Owner (ពេញលេញ) vs Client Admin (២ ប៊ូតុង)
+1. 🗄️ Cloud Database Persistence (MongoDB Atlas & PostgreSQL/Supabase):
+   - Auto-Restore on boot & Real-time Cloud Sync
+   - Telegram Commands: /dbstatus, /synccloud, /backup
+2. 📋 Client Database & CRM: មើលបញ្ជីអតិថិជន កញ្ចប់សេវា ថ្ងៃទិញ និងរយៈពេលនៅសល់
+3. ⚙️ Group Profile & License Config: [ +30 ថ្ងៃ ], [ +90 ថ្ងៃ ], [ 👑 ពេញមួយជីវិត ]
+4. ⏱️ Auto-Delete & Anti-Flood Sweeper Watchdog
+5. 🛡️ Two-Tier Clean Isolation: Master Owner (ពេញលេញ) vs Client Admin (២ ប៊ូតុង)
 =============================================================================
 """
 
-# (Full python script is safely preserved and saved in /telegram_security_bot.py)`}</pre>
+# (Full python script is safely preserved and saved in /bot.py)`}</pre>
           )}
         </div>
       </div>

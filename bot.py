@@ -70,6 +70,179 @@ user_message_timestamps = defaultdict(list)
 last_bot_messages: dict = {}
 last_expiry_alerts: dict = {}
 
+# ----------------- CLOUD & PERSISTENT DATABASE ENGINE -----------------
+# 1. MongoDB Atlas (Free 512MB): MONGODB_URI or MONGO_URL
+# 2. PostgreSQL / Supabase (Free): DATABASE_URL or POSTGRES_URL
+# 3. Local JSON with Auto-Restore & Telegram Backup
+
+MONGODB_URI = os.getenv("MONGODB_URI") or os.getenv("MONGO_URL", "")
+POSTGRES_URL = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL", "")
+MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "sorn_security_bot")
+
+mongo_client = None
+mongo_db = None
+postgres_conn = None
+cloud_db_type = "Local Cache (No Cloud URI Set)"
+cloud_db_connected = False
+last_cloud_sync_time = "Never"
+
+def init_cloud_database():
+    """ភ្ជាប់ទៅកាន់ Cloud Database (MongoDB Atlas ឬ PostgreSQL/Supabase) ប្រសិនបើមានកំណត់ Environment Variable"""
+    global mongo_client, mongo_db, postgres_conn, cloud_db_type, cloud_db_connected
+    
+    # 1. ពិនិត្យ MongoDB Atlas
+    if MONGODB_URI:
+        try:
+            from pymongo import MongoClient
+            mongo_client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=4000)
+            # Test ping
+            mongo_client.admin.command('ping')
+            mongo_db = mongo_client[MONGODB_DB_NAME]
+            cloud_db_type = "MongoDB Atlas (Cloud)"
+            cloud_db_connected = True
+            logger.info(f"✅ ជោគជ័យ៖ បានតភ្ជាប់ Cloud Database: {cloud_db_type} (DB: {MONGODB_DB_NAME})")
+            return
+        except Exception as e:
+            logger.warning(f"⚠️ មិនអាចតភ្ជាប់ MongoDB Atlas ({e}) -> ដំណើរការ Local Fallback...")
+
+    # 2. ពិនិត្យ PostgreSQL / Supabase
+    if POSTGRES_URL:
+        try:
+            import psycopg2
+            postgres_conn = psycopg2.connect(POSTGRES_URL, connect_timeout=5)
+            postgres_conn.autocommit = True
+            with postgres_conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS bot_storage (
+                        key_name VARCHAR(64) PRIMARY KEY,
+                        data_json TEXT NOT NULL,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+            cloud_db_type = "PostgreSQL / Supabase (Cloud)"
+            cloud_db_connected = True
+            logger.info(f"✅ ជោគជ័យ៖ បានតភ្ជាប់ Cloud Database: {cloud_db_type}")
+            return
+        except Exception as e:
+            logger.warning(f"⚠️ មិនអាចតភ្ជាប់ PostgreSQL ({e}) -> ដំណើរការ Local Fallback...")
+
+    logger.info("ℹ️ មិនទាន់មាន Cloud Database URI -> ប្រើប្រាស់ Local Disk + Telegram Backup")
+
+def cloud_sync_on_startup():
+    """ទាញទិន្នន័យពី Cloud Database មកដាក់ក្នុង Local File ពេល Bot ចាប់ផ្ដើមដំណើរការ (Auto-Restore)"""
+    global last_cloud_sync_time
+    if not cloud_db_connected:
+        return
+
+    try:
+        # A. MongoDB Sync
+        if mongo_db is not None:
+            # Sync Groups
+            col_groups = mongo_db["groups_config"]
+            remote_groups = {}
+            for doc in col_groups.find({}):
+                gid = doc.get("_id") or doc.get("chat_id")
+                if gid:
+                    doc_copy = {k: v for k, v in doc.items() if k != "_id"}
+                    remote_groups[str(gid)] = doc_copy
+            
+            local_groups = read_json(GROUPS_FILE, {})
+            if remote_groups:
+                # Cloud មានទិន្នន័យ -> Restore ចូល Local
+                local_groups.update(remote_groups)
+                with open(GROUPS_FILE, "w", encoding="utf-8") as f:
+                    json.dump(local_groups, f, ensure_ascii=False, indent=2)
+                logger.info(f"📥 [Auto-Restore] បានទាញយក {len(remote_groups)} ក្រុមពី MongoDB Atlas")
+            elif local_groups:
+                # Cloud នៅទំនេរ -> Push Local ឡើង Cloud
+                for gid, data in local_groups.items():
+                    col_groups.update_one({"_id": str(gid)}, {"$set": data}, upsert=True)
+                logger.info(f"📤 [Initial-Seed] បាន Upload {len(local_groups)} ក្រុមទៅកាន់ MongoDB Atlas")
+
+            # Sync Clients
+            col_clients = mongo_db["clients_database"]
+            remote_clients = {}
+            for doc in col_clients.find({}):
+                cid = doc.get("_id") or doc.get("user_id")
+                if cid:
+                    doc_copy = {k: v for k, v in doc.items() if k != "_id"}
+                    remote_clients[str(cid)] = doc_copy
+            
+            local_clients = read_json(CLIENTS_FILE, {})
+            if remote_clients:
+                local_clients.update(remote_clients)
+                with open(CLIENTS_FILE, "w", encoding="utf-8") as f:
+                    json.dump(local_clients, f, ensure_ascii=False, indent=2)
+                logger.info(f"📥 [Auto-Restore] បានទាញយក {len(remote_clients)} អតិថិជនពី MongoDB Atlas")
+            elif local_clients:
+                for cid, data in local_clients.items():
+                    col_clients.update_one({"_id": str(cid)}, {"$set": data}, upsert=True)
+
+            last_cloud_sync_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # B. PostgreSQL Sync
+        elif postgres_conn is not None:
+            with postgres_conn.cursor() as cur:
+                cur.execute("SELECT key_name, data_json FROM bot_storage;")
+                rows = cur.fetchall()
+                data_map = {r[0]: r[1] for r in rows}
+                
+                if "groups_config" in data_map:
+                    g_data = json.loads(data_map["groups_config"])
+                    with open(GROUPS_FILE, "w", encoding="utf-8") as f:
+                        json.dump(g_data, f, ensure_ascii=False, indent=2)
+                    logger.info(f"📥 [Auto-Restore] បានទាញយក {len(g_data)} ក្រុមពី PostgreSQL")
+                elif os.path.exists(GROUPS_FILE):
+                    g_local = read_json(GROUPS_FILE, {})
+                    cur.execute(
+                        "INSERT INTO bot_storage (key_name, data_json, updated_at) VALUES (%s, %s, NOW()) ON CONFLICT (key_name) DO UPDATE SET data_json = EXCLUDED.data_json, updated_at = NOW();",
+                        ("groups_config", json.dumps(g_local, ensure_ascii=False))
+                    )
+
+                if "clients_database" in data_map:
+                    c_data = json.loads(data_map["clients_database"])
+                    with open(CLIENTS_FILE, "w", encoding="utf-8") as f:
+                        json.dump(c_data, f, ensure_ascii=False, indent=2)
+                elif os.path.exists(CLIENTS_FILE):
+                    c_local = read_json(CLIENTS_FILE, {})
+                    cur.execute(
+                        "INSERT INTO bot_storage (key_name, data_json, updated_at) VALUES (%s, %s, NOW()) ON CONFLICT (key_name) DO UPDATE SET data_json = EXCLUDED.data_json, updated_at = NOW();",
+                        ("clients_database", json.dumps(c_local, ensure_ascii=False))
+                    )
+            last_cloud_sync_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    except Exception as e:
+        logger.error(f"❌ កំហុសពេលធ្វើ Cloud Sync Startup: {e}")
+
+def cloud_save_data(file_path: str, data):
+    """រក្សាទុកទិន្នន័យទៅកាន់ Cloud Database (MongoDB Atlas / PostgreSQL) ភ្លាមៗពេលមានការកែប្រែ"""
+    global last_cloud_sync_time
+    if not cloud_db_connected:
+        return
+
+    try:
+        col_name = "groups_config" if "group" in file_path else ("clients_database" if "client" in file_path else "audit_logs")
+        
+        # MongoDB Update
+        if mongo_db is not None:
+            col = mongo_db[col_name]
+            if isinstance(data, dict):
+                for k, v in data.items():
+                    col.update_one({"_id": str(k)}, {"$set": v if isinstance(v, dict) else {"val": v}}, upsert=True)
+            last_cloud_sync_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # PostgreSQL Update
+        elif postgres_conn is not None:
+            with postgres_conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO bot_storage (key_name, data_json, updated_at) VALUES (%s, %s, NOW()) ON CONFLICT (key_name) DO UPDATE SET data_json = EXCLUDED.data_json, updated_at = NOW();",
+                    (col_name, json.dumps(data, ensure_ascii=False))
+                )
+            last_cloud_sync_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    except Exception as e:
+        logger.warning(f"⚠️ មិនអាច Save ទៅ Cloud Database បានភ្លាមៗ: {e}")
+
 # ----------------- LOCAL FILE DATABASE HELPERS -----------------
 def read_json(file_path: str, default=None):
     if default is None:
@@ -87,6 +260,8 @@ def write_json(file_path: str, data):
     try:
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+        # រក្សាទុកឡើង Cloud Database ដោយស្វ័យប្រវត្តិ
+        cloud_save_data(file_path, data)
     except Exception as e:
         logger.warning(f"Error writing {file_path}: {e}")
 
@@ -934,6 +1109,65 @@ async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await send_clean_bot_response(update, context, info_text, reply_markup=get_admin_action_keyboard(cid_str), delete_seconds=60)
 
+async def dbstatus_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """ពិនិត្យស្ថានភាពតភ្ជាប់ Cloud Database (MongoDB Atlas / PostgreSQL) និងចំនួនទិន្នន័យ Synced"""
+    user = update.effective_user
+    if not user or not is_admin(user.id):
+        return
+
+    groups = read_json(GROUPS_FILE, {})
+    clients = read_json(CLIENTS_FILE, {})
+
+    status_icon = "🟢 ភ្ជាប់ជោគជ័យ (Live Synced)" if cloud_db_connected else "🟡 ដំណើរការ Local Cache (គ្មាន Cloud URI)"
+    
+    text = (
+        "🗄️ <b>ស្ថានភាព CLOUD DATABASE PERSISTENCE</b> 🗄️\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"🌐 <b>ប្រភេទ Database:</b> <code>{cloud_db_type}</code>\n"
+        f"⚡ <b>ស្ថានភាពតភ្ជាប់:</b> {status_icon}\n"
+        f"📊 <b>ទិន្នន័យក្រុម (Groups):</b> <code>{len(groups)}</code> ក្រុម\n"
+        f"👥 <b>ទិន្នន័យអតិថិជន (Clients):</b> <code>{len(clients)}</code> នាក់\n"
+        f"🕒 <b>Sync ចុងក្រោយ:</b> <code>{last_cloud_sync_time}</code>\n\n"
+        "💡 <b>ការណែនាំកំណត់ Cloud Database (Free):</b>\n"
+        "• <b>MongoDB Atlas (Free 512MB):</b> កំណត់ Environment <code>MONGODB_URI</code> លើ Render\n"
+        "• <b>PostgreSQL / Supabase (Free):</b> កំណត់ Environment <code>DATABASE_URL</code> លើ Render\n"
+        "• បញ្ជា <code>/synccloud</code> ដើម្បី Force Sync ទិន្នន័យ\n"
+        "• បញ្ជា <code>/backup</code> ដើម្បីទាញយកឯកសារ Backup .json\n"
+        "━━━━━━━━━━━━━━━━━━━━"
+    )
+    await send_clean_bot_response(update, context, text, delete_seconds=60)
+
+async def synccloud_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Force Push/Pull Cloud Database Sync"""
+    user = update.effective_user
+    if not user or not is_admin(user.id):
+        return
+
+    if not cloud_db_connected:
+        init_cloud_database()
+
+    if not cloud_db_connected:
+        await send_clean_bot_response(
+            update, 
+            context, 
+            "⚠️ <b>មិនទាន់បានកំណត់ Cloud Database URI ទេ!</b>\n\nសូមកំណត់ <code>MONGODB_URI</code> ឬ <code>DATABASE_URL</code> ក្នុង Render Environment Variables ជាមុនសិន។",
+            delete_seconds=30
+        )
+        return
+
+    cloud_sync_on_startup()
+    groups = read_json(GROUPS_FILE, {})
+    clients = read_json(CLIENTS_FILE, {})
+    
+    await send_clean_bot_response(
+        update,
+        context,
+        f"✅ <b>Cloud Sync ជោគជ័យ!</b>\n\n"
+        f"🗄️ Database: <code>{cloud_db_type}</code>\n"
+        f"📊 បាន Sync {len(groups)} ក្រុម និង {len(clients)} អតិថិជនរួចរាល់។",
+        delete_seconds=30
+    )
+
 async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not user or not is_admin(user.id):
@@ -1712,6 +1946,11 @@ def main():
         sys.exit(1)
 
     logger.info("🚀 កំពុងចាប់ផ្តើម Security_bot_V2.0.1 ជាមួយ Full Commands & Expiry Direct Alerts...")
+    
+    # ----------------- CLOUD DATABASE INITIALIZATION & STARTUP SYNC -----------------
+    init_cloud_database()
+    cloud_sync_on_startup()
+
     app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init_setup).build()
 
     # User & Group Commands
@@ -1739,6 +1978,9 @@ def main():
     app.add_handler(CommandHandler("leavegroup", leave_group_command))
     app.add_handler(CommandHandler("remindadmin", remind_admin_command))
     app.add_handler(CommandHandler("backup", backup_command))
+    app.add_handler(CommandHandler("dbstatus", dbstatus_command))
+    app.add_handler(CommandHandler("cloud", dbstatus_command))
+    app.add_handler(CommandHandler("synccloud", synccloud_command))
     app.add_handler(CommandHandler("notifyexpiry", notify_expiry_manual_command))
 
     # Callback Query (Buttons)
