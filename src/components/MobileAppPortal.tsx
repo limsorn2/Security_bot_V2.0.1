@@ -68,6 +68,40 @@ export const MobileAppPortal: React.FC<MobileAppPortalProps> = ({
   const [topUpSelectedGroup, setTopUpSelectedGroup] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [timeString, setTimeString] = useState("9:56");
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showAndroidInstallModal, setShowAndroidInstallModal] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
+
+  // Capture PWA install prompt on Android
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+
+    if (window.matchMedia("(display-mode: standalone)").matches) {
+      setIsInstalled(true);
+    }
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const triggerAndroidInstall = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") {
+        setIsInstalled(true);
+      }
+      setDeferredPrompt(null);
+    } else {
+      setShowAndroidInstallModal(true);
+    }
+  };
 
   // Update clock in status bar
   useEffect(() => {
@@ -100,142 +134,101 @@ export const MobileAppPortal: React.FC<MobileAppPortalProps> = ({
   const groupList = Object.values(groups) as GroupConfig[];
   const activeGroups = groupList.filter((g) => g.is_authorized && g.is_enabled);
 
-  // 8 Grid Apps matching user's photo screenshot exactly
+  // 8 Core Primary Apps matching our existing system features
   const primaryApps = [
     {
-      id: "myhealth",
-      title: "MyHealth",
-      khmerTitle: "សុខភាពប្រព័ន្ធ",
-      iconType: "myhealth",
-      bgColor: "from-cyan-400 to-teal-500",
-      description: "ពិនិត្យសុខភាព Bot Engine, RAM & VirusTotal API",
-      category: "System"
+      id: "overview",
+      title: "ផ្ទាំងគ្រប់គ្រង",
+      enTitle: "Dashboard",
+      iconType: "dashboard",
+      targetTab: "overview",
+      description: "ផ្ទាំងគ្រប់គ្រងទូទៅ ពិនិត្យ Uptime, RAM, និងស្ថិតិ Bot ផ្ទាល់"
     },
     {
-      id: "sim_verifier",
-      title: "SIM Verifier",
-      khmerTitle: "ផ្ទៀងផ្ទាត់ ID",
-      iconType: "sim",
-      bgColor: "from-blue-500 to-indigo-600",
-      description: "ផ្ទៀងផ្ទាត់ Chat ID, Telegram User ID & Anti-Spam",
-      category: "Security"
+      id: "groups",
+      title: "គ្រប់គ្រងក្រុម",
+      enTitle: "Groups & License",
+      iconType: "groups",
+      targetTab: "groups",
+      description: "គ្រប់គ្រងបញ្ជីគ្រុប Telegram, បន្ថែមថ្ងៃ និង Free Trial ៧ ថ្ងៃ"
     },
     {
-      id: "topup",
-      title: "TopUp",
-      khmerTitle: "បញ្ចូលថ្ងៃប្រើប្រាស់",
-      iconType: "topup",
-      bgColor: "from-purple-500 to-indigo-600",
-      description: "បន្ថែមថ្ងៃ 30 ថ្ងៃ, Free Trial 7 ថ្ងៃ & Lifetime VIP",
-      category: "Billing"
+      id: "simulator",
+      title: "តេស្តឆាតបត",
+      enTitle: "Bot Simulator",
+      iconType: "simulator",
+      targetTab: "simulator",
+      description: "ឧបករណ៍តេស្តពាក្យបញ្ជា Bot ផ្ទាល់ (/start, /status, /admin)"
     },
     {
-      id: "dg_frame",
-      title: "DG Frame",
-      khmerTitle: "ខែលការពារមេរោគ",
-      iconType: "frame",
-      bgColor: "from-indigo-500 to-purple-600",
-      description: "ស្កេន & រារាំងឯកសារមេរោគ .apk, .exe, .bat",
-      category: "Defense"
+      id: "scanner",
+      title: "ស្កេនមេរោគ",
+      enTitle: "Malware Lab",
+      iconType: "scanner",
+      targetTab: "scanner",
+      description: "មន្ទីរពិសោធន៍ស្កេនមេរោគ .apk, .exe និង VirusTotal API"
     },
     {
-      id: "dg_chatgpt",
-      title: "DG ChatGPT",
-      khmerTitle: "ជំនួយការឆ្លាតវៃ",
-      iconType: "chatgpt",
-      bgColor: "from-sky-500 to-blue-600",
-      description: "តេស្តបញ្ជា Bot Simulator & ប្រឹក្សាសុវត្ថិភាព AI",
-      category: "AI & Bot"
+      id: "logs",
+      title: "កំណត់ត្រាសន្តិសុខ",
+      enTitle: "Audit Logs",
+      iconType: "logs",
+      targetTab: "logs",
+      description: "កំណត់ត្រាចាប់មេរោគ .apk និងប្រវត្តិ Mute គណនីល្មើស"
     },
     {
-      id: "translate_kh",
-      title: "TranslateKH",
-      khmerTitle: "បកប្រែ & ច្បាប់",
-      iconType: "translate",
-      bgColor: "from-amber-600 to-blue-900",
-      description: "គោលការណ៍សុវត្ថិភាពភាសាខ្មែរ & ពាក្យបញ្ជា Bot",
-      category: "Rules"
+      id: "clients",
+      title: "បញ្ជីអតិថិជន",
+      enTitle: "Clients CRM",
+      iconType: "clients",
+      targetTab: "clients",
+      description: "ទិន្នន័យទំនាក់ទំនងម្ចាស់គ្រុប និងប្រវត្តិទិញកញ្ចប់សេវា"
     },
     {
-      id: "dg_qr",
-      title: "កូដQR",
-      khmerTitle: "ស្កេន Add Bot",
-      iconType: "qr",
-      bgColor: "from-cyan-500 to-blue-600",
-      description: "QR Code សម្រាប់ Invite Bot ចូលគ្រុប Telegram ភ្លាមៗ",
-      category: "Connect"
+      id: "broadcast",
+      title: "ផ្សាយ Channel",
+      enTitle: "Broadcast",
+      iconType: "broadcast",
+      targetTab: "broadcast",
+      description: "ផ្ញើសារប្រកាសដំណឹងទៅកាន់ Telegram Channel @sornsecurityrobot"
     },
     {
-      id: "more",
-      title: "More",
-      khmerTitle: "កម្មវិធីទាំងអស់",
-      iconType: "more",
-      bgColor: "from-slate-200 to-slate-300",
-      description: "បើកមជ្ឈមណ្ឌលឧបករណ៍ទាំងអស់ (CRM, Logs, Settings)",
-      category: "More"
+      id: "settings",
+      title: "កំណត់ប្រព័ន្ធ",
+      enTitle: "Bot Settings",
+      iconType: "settings",
+      targetTab: "settings",
+      description: "កំណត់ក្បួន Anti-Flood, File Extensions និងពេល Mute"
     }
   ];
 
   // Extended Apps for "All Apps" Tab
   const allAppsList = [
-    ...primaryApps.filter((a) => a.id !== "more"),
+    ...primaryApps,
     {
-      id: "groups_mgr",
-      title: "Group Manager",
-      khmerTitle: "គ្រប់គ្រងក្រុម & សិទ្ធិ",
-      iconType: "shield",
-      bgColor: "from-blue-600 to-indigo-700",
-      description: "គ្រប់គ្រងគ្រុបទាំងអស់, Revoke, Leave, Add Days",
-      targetTab: "groups"
+      id: "code",
+      title: "កូដប្រភព Bot",
+      enTitle: "Python Code Hub",
+      iconType: "code",
+      targetTab: "code",
+      description: "ទាញយកកូដប្រភព bot.py, .env និងការដំឡើងលើ VPS/Cloud"
     },
     {
-      id: "client_crm",
-      title: "Clients CRM",
-      khmerTitle: "បញ្ជីអតិថិជន & ប្រវត្តិ",
-      iconType: "users",
-      bgColor: "from-emerald-500 to-teal-600",
-      description: "ព័ត៌មានទំនាក់ទំនងម្ចាស់គ្រុប និងប្រវត្តិទិញ",
-      targetTab: "clients"
-    },
-    {
-      id: "security_logs",
-      title: "Audit Logs",
-      khmerTitle: "កំណត់ត្រាសន្តិសុខ",
-      iconType: "file",
-      bgColor: "from-rose-500 to-red-600",
-      description: "ប្រវត្តិចាប់មេរោគ .apk និងការ Mute គណនីល្មើស",
-      targetTab: "logs"
-    },
-    {
-      id: "malware_lab",
-      title: "Malware Lab",
-      khmerTitle: "ស្កេនមេរោគផ្ទាល់",
-      iconType: "bug",
-      bgColor: "from-violet-500 to-purple-700",
-      description: "ទម្លាក់ឯកសារ .apk / .exe ពិនិត្យ VirusTotal",
-      targetTab: "scanner"
-    },
-    {
-      id: "broadcast_channel",
-      title: "Broadcast",
-      khmerTitle: "ផ្សាយពាណិជ្ជកម្ម",
-      iconType: "send",
-      bgColor: "from-blue-500 to-cyan-600",
-      description: "ផ្ញើសារប្រកាសទៅកាន់ Channel @sornsecurityrobot",
-      targetTab: "broadcast"
-    },
-    {
-      id: "bot_settings",
-      title: "Bot Config",
-      khmerTitle: "ការកំណត់ប្រព័ន្ធ",
-      iconType: "sliders",
-      bgColor: "from-slate-600 to-slate-800",
-      description: "កំណត់ពេល Mute, Anti-Flood & File Extensions",
-      targetTab: "settings"
+      id: "qr_connect",
+      title: "កូដ QR Add Bot",
+      enTitle: "QR Invite",
+      iconType: "qr",
+      targetTab: "qr_modal",
+      description: "QR Code សម្រាប់ Invite Bot ចូលគ្រុប Telegram ភ្លាមៗ"
     }
   ];
 
   const handleAppClick = (appId: string, targetTab?: string) => {
+    if (targetTab === "qr_modal") {
+      setSelectedAppModal("dg_qr");
+      return;
+    }
+
     if (targetTab) {
       onNavigateToTab(targetTab);
       return;
@@ -246,58 +239,30 @@ export const MobileAppPortal: React.FC<MobileAppPortalProps> = ({
       return;
     }
 
-    setSelectedAppModal(appId);
+    onNavigateToTab(appId);
   };
 
-  // Render Custom Authentic App Icons matching the image
+  // Render Custom Authentic App Icons matching the design archetype
   const renderAppIcon = (iconType: string) => {
     switch (iconType) {
-      case "myhealth":
+      case "dashboard":
         return (
-          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-[#00d2ff] to-[#00b4db] p-0.5 shadow-md flex items-center justify-center relative overflow-hidden group-hover:scale-105 transition-transform">
-            <div className="w-full h-full rounded-[14px] bg-gradient-to-br from-[#00c6ff] to-[#0072ff] flex items-center justify-center relative">
-              <Heart className="w-7 h-7 text-white fill-white" />
-              <span className="absolute font-serif font-black text-[13px] text-[#0072ff] top-[14px]">i</span>
+          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-[#00d2ff] to-[#0072ff] p-0.5 shadow-md flex items-center justify-center relative overflow-hidden group-hover:scale-105 transition-transform">
+            <div className="w-full h-full rounded-[14px] bg-gradient-to-br from-[#00c6ff] to-[#0072ff] flex items-center justify-center relative shadow-inner">
+              <Radio className="w-6 h-6 text-white" />
+              <span className="w-2 h-2 rounded-full bg-emerald-300 absolute top-2 right-2 animate-ping"></span>
             </div>
           </div>
         );
-      case "sim":
+      case "groups":
         return (
           <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-[#2575fc] to-[#6a11cb] p-0.5 shadow-md flex items-center justify-center group-hover:scale-105 transition-transform">
-            <div className="w-full h-full rounded-[14px] bg-gradient-to-br from-[#2b5876] to-[#4e4376] flex items-center justify-center relative">
-              <div className="w-6 h-7 border-2 border-white/90 rounded-sm flex items-center justify-center relative">
-                <div className="w-3.5 h-3.5 border border-emerald-400 bg-emerald-400/30 rounded-full flex items-center justify-center">
-                  <ShieldCheck className="w-2.5 h-2.5 text-emerald-300" />
-                </div>
-              </div>
+            <div className="w-full h-full rounded-[14px] bg-gradient-to-br from-[#2b5876] to-[#4e4376] flex items-center justify-center relative shadow-inner">
+              <ShieldCheck className="w-6 h-6 text-emerald-300" />
             </div>
           </div>
         );
-      case "topup":
-        return (
-          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-[#8a2387] via-[#e94057] to-[#f27121] p-0.5 shadow-md flex items-center justify-center group-hover:scale-105 transition-transform">
-            <div className="w-full h-full rounded-[14px] bg-gradient-to-br from-[#654ea3] to-[#eaafc8] flex items-center justify-center relative">
-              <div className="relative flex items-center justify-center">
-                <CreditCard className="w-6 h-6 text-white" />
-                <ArrowUpRight className="w-3.5 h-3.5 text-amber-300 absolute -top-1.5 -right-1.5 bg-purple-900 rounded-full" />
-              </div>
-            </div>
-          </div>
-        );
-      case "frame":
-        return (
-          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-[#667eea] to-[#764ba2] p-0.5 shadow-md flex items-center justify-center group-hover:scale-105 transition-transform">
-            <div className="w-full h-full rounded-[14px] bg-gradient-to-br from-[#5f72bd] to-[#9b23ea] flex items-center justify-center">
-              <svg className="w-7 h-7 text-white fill-white" viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" opacity="0.1" />
-                <path d="M19.07 4.93a10 10 0 0 0-14.14 0 10 10 0 0 0 0 14.14 10 10 0 0 0 14.14 0 10 10 0 0 0 0-14.14zM12 20a8 8 0 1 1 0-16 8 8 0 0 1 0 16z" opacity="0.3"/>
-                <path d="M12 6c-3.31 0-6 2.69-6 6 0 2.21 1.2 4.15 2.97 5.18.23-.42.54-.8.93-1.12C8.75 15.34 8 13.78 8 12c0-2.21 1.79-4 4-4s4 1.79 4 4c0 1.78-.75 3.34-1.9 4.06.39.32.7.7.93 1.12C16.8 16.15 18 14.21 18 12c0-3.31-2.69-6-6-6z"/>
-                <path d="M12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
-              </svg>
-            </div>
-          </div>
-        );
-      case "chatgpt":
+      case "simulator":
         return (
           <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-[#0072ff] to-[#00c6ff] p-0.5 shadow-md flex items-center justify-center group-hover:scale-105 transition-transform">
             <div className="w-full h-full rounded-[14px] bg-[#0c82f2] flex items-center justify-center relative shadow-inner">
@@ -308,16 +273,51 @@ export const MobileAppPortal: React.FC<MobileAppPortalProps> = ({
             </div>
           </div>
         );
-      case "translate":
+      case "scanner":
         return (
-          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-[#0a2342] to-[#123456] p-0.5 shadow-md flex items-center justify-center group-hover:scale-105 transition-transform overflow-hidden">
-            <div className="w-full h-full rounded-[14px] bg-[#0b2545] flex flex-col items-center justify-center relative p-1">
-              <div className="text-amber-400 font-bold text-xs leading-none">ក</div>
-              <div className="w-5 h-0.5 bg-amber-400/60 my-0.5"></div>
-              <div className="text-white font-bold text-[10px] leading-none">A</div>
-              <div className="absolute bottom-0 inset-x-0 bg-amber-600 text-[6px] text-white font-bold text-center py-0.2">
-                TRANSLATE KH
-              </div>
+          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-[#8a2387] via-[#e94057] to-[#f27121] p-0.5 shadow-md flex items-center justify-center group-hover:scale-105 transition-transform">
+            <div className="w-full h-full rounded-[14px] bg-gradient-to-br from-[#654ea3] to-[#8a2387] flex items-center justify-center relative shadow-inner">
+              <Sparkles className="w-6 h-6 text-amber-300" />
+            </div>
+          </div>
+        );
+      case "logs":
+        return (
+          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-[#ff416c] to-[#ff4b2b] p-0.5 shadow-md flex items-center justify-center group-hover:scale-105 transition-transform">
+            <div className="w-full h-full rounded-[14px] bg-gradient-to-br from-[#d31027] to-[#ea384d] flex items-center justify-center relative shadow-inner">
+              <FileCheck className="w-6 h-6 text-white" />
+            </div>
+          </div>
+        );
+      case "clients":
+        return (
+          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-[#11998e] to-[#38ef7d] p-0.5 shadow-md flex items-center justify-center group-hover:scale-105 transition-transform">
+            <div className="w-full h-full rounded-[14px] bg-gradient-to-br from-[#0ba360] to-[#3cba92] flex items-center justify-center relative shadow-inner">
+              <User className="w-6 h-6 text-white" />
+            </div>
+          </div>
+        );
+      case "broadcast":
+        return (
+          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-[#00c6ff] to-[#0072ff] p-0.5 shadow-md flex items-center justify-center group-hover:scale-105 transition-transform">
+            <div className="w-full h-full rounded-[14px] bg-gradient-to-br from-[#0072ff] to-[#0052cc] flex items-center justify-center relative shadow-inner">
+              <Send className="w-5 h-5 text-white transform -rotate-12 translate-x-0.5" />
+            </div>
+          </div>
+        );
+      case "settings":
+        return (
+          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-[#4b6cb7] to-[#182848] p-0.5 shadow-md flex items-center justify-center group-hover:scale-105 transition-transform">
+            <div className="w-full h-full rounded-[14px] bg-gradient-to-br from-[#3a6073] to-[#16222f] flex items-center justify-center relative shadow-inner">
+              <Sliders className="w-5 h-5 text-cyan-300" />
+            </div>
+          </div>
+        );
+      case "code":
+        return (
+          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 p-0.5 shadow-md flex items-center justify-center group-hover:scale-105 transition-transform">
+            <div className="w-full h-full rounded-[14px] bg-slate-900 flex items-center justify-center relative shadow-inner">
+              <Bot className="w-5 h-5 text-purple-300" />
             </div>
           </div>
         );
@@ -330,21 +330,6 @@ export const MobileAppPortal: React.FC<MobileAppPortalProps> = ({
                 <div className="bg-[#0072ff] rounded-[3px]"></div>
                 <div className="bg-[#0072ff] rounded-[3px]"></div>
                 <div className="bg-[#00c6ff] rounded-[3px]"></div>
-              </div>
-            </div>
-          </div>
-        );
-      case "more":
-        return (
-          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 p-0.5 shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform border border-slate-300">
-            <div className="w-full h-full rounded-[14px] bg-white flex items-center justify-center p-2">
-              <div className="grid grid-cols-2 gap-1 w-full h-full relative">
-                <div className="bg-slate-300 rounded-[3px]"></div>
-                <div className="bg-slate-400 rounded-[3px]"></div>
-                <div className="bg-slate-400 rounded-[3px]"></div>
-                <div className="bg-blue-500 rounded-[3px] flex items-center justify-center text-white text-[9px] font-bold">
-                  +
-                </div>
               </div>
             </div>
           </div>
@@ -498,12 +483,40 @@ export const MobileAppPortal: React.FC<MobileAppPortalProps> = ({
                 </div>
 
                 {/* Helper sub-text matching image */}
-                <div className="text-center mt-4 pt-2 border-t border-slate-100">
+                <div className="text-center mt-4 pt-2 border-t border-slate-100 flex items-center justify-between">
                   <p className="text-[10px] text-slate-400 font-medium">
                     Tap “More” or “Swipe up” to see all apps
                   </p>
+                  <button
+                    onClick={triggerAndroidInstall}
+                    className="text-[10px] bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center gap-1 transition-all active:scale-95"
+                  >
+                    <Smartphone className="w-3 h-3" />
+                    <span>{isInstalled ? "✅ បានដំឡើង" : "📲 ដំឡើងលើ Android"}</span>
+                  </button>
                 </div>
               </div>
+
+              {/* ================= ANDROID INSTALL PROMO CARD ================= */}
+              {!isInstalled && (
+                <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white p-3.5 rounded-2xl shadow-md border border-indigo-500/30 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white shadow-sm shrink-0">
+                      <Smartphone className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-xs text-white">ដំឡើង App លើអេក្រង់ Android</h4>
+                      <p className="text-[10px] text-slate-300">ប្រើប្រាស់ពេញអេក្រង់ Full-Screen ដូច Native App</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={triggerAndroidInstall}
+                    className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black text-[11px] px-3 py-1.5 rounded-xl shadow-md shrink-0 active:scale-95 transition-transform"
+                  >
+                    ដំឡើងភ្លាម
+                  </button>
+                </div>
+              )}
 
               {/* ================= 4. QUICK SYSTEM METRICS & LIVE STATS ================= */}
               <div className="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-100 space-y-3">
@@ -593,16 +606,16 @@ export const MobileAppPortal: React.FC<MobileAppPortalProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 {allAppsList
-                  .filter((a) => a.title.toLowerCase().includes(searchQuery.toLowerCase()) || a.khmerTitle.includes(searchQuery))
+                  .filter((a) => a.title.toLowerCase().includes(searchQuery.toLowerCase()) || (a.enTitle && a.enTitle.toLowerCase().includes(searchQuery.toLowerCase())) || a.description.toLowerCase().includes(searchQuery.toLowerCase()))
                   .map((app) => (
                     <button
                       key={app.id}
                       onClick={() => handleAppClick(app.id, (app as any).targetTab)}
-                      className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-start text-left group hover:border-blue-300 transition-all cursor-pointer"
+                      className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm flex flex-col items-start text-left group hover:border-blue-300 transition-all cursor-pointer active:scale-95"
                     >
                       <div className="mb-2.5">{renderAppIcon(app.iconType)}</div>
                       <h4 className="font-bold text-xs text-slate-800 group-hover:text-blue-600">{app.title}</h4>
-                      <p className="text-[10px] text-blue-600 font-medium">{app.khmerTitle}</p>
+                      <p className="text-[10px] text-blue-600 font-medium">{app.enTitle}</p>
                       <p className="text-[9px] text-slate-500 mt-1 line-clamp-2">{app.description}</p>
                     </button>
                   ))}
@@ -847,10 +860,10 @@ export const MobileAppPortal: React.FC<MobileAppPortalProps> = ({
                 {renderAppIcon(selectedAppModal)}
                 <div>
                   <h3 className="font-extrabold text-sm text-slate-800">
-                    {primaryApps.find((a) => a.id === selectedAppModal)?.title}
+                    {allAppsList.find((a) => a.id === selectedAppModal)?.title || "មុខងារប្រព័ន្ធ"}
                   </h3>
                   <p className="text-[10px] text-blue-600 font-bold">
-                    {primaryApps.find((a) => a.id === selectedAppModal)?.khmerTitle}
+                    {allAppsList.find((a) => a.id === selectedAppModal)?.enTitle || "Security Bot"}
                   </p>
                 </div>
               </div>
@@ -1049,6 +1062,81 @@ export const MobileAppPortal: React.FC<MobileAppPortalProps> = ({
               </div>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* ================= ANDROID PWA INSTALLATION GUIDE MODAL ================= */}
+      {showAndroidInstallModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-md">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-800">របៀបដំឡើងលើ Android</h3>
+                  <p className="text-[10px] text-emerald-600 font-bold">Install as Android App (PWA)</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAndroidInstallModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <p className="text-slate-600 leading-relaxed">
+                លោកអ្នកអាចដំឡើង Web App នេះឱ្យចេញជា <strong>រូបតំណាង App (Icon)</strong> លើអេក្រង់ដើមទូរស័ព្ទ Android ដោយគ្រាន់តែធ្វើតាម ៣ ជំហានងាយៗខាងក្រោម៖
+              </p>
+
+              <div className="space-y-2.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-slate-700">
+                <div className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                    1
+                  </span>
+                  <div>
+                    <p className="font-bold text-slate-900">បើកតំណភ្ជាប់ក្នុង Google Chrome</p>
+                    <p className="text-[10px] text-slate-500">បើក Link វេបសាយនេះលើទូរស័ព្ទ Android របស់អ្នក។</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                    2
+                  </span>
+                  <div>
+                    <p className="font-bold text-slate-900">ចុចសញ្ញាចុច ៣ (Menu ⋮) ខាងលើស្ដាំ</p>
+                    <p className="text-[10px] text-slate-500">ចុចលើប៊ូតុង Options របស់កម្មវិធី Chrome។</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                    3
+                  </span>
+                  <div>
+                    <p className="font-bold text-emerald-700">ជ្រើសយក "Install app" ឬ "Add to Home screen"</p>
+                    <p className="text-[10px] text-slate-500">ចុច "Install / បន្ថែមទៅអេក្រង់ដើម" ជាការស្រេច!</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-emerald-800 text-[11px] flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>ពេលដំឡើងរួច វានឹងដំណើរការពេញអេក្រង់ (Full-Screen) ដូច App ពិតៗ 100%!</span>
+              </div>
+
+              <button
+                onClick={() => setShowAndroidInstallModal(false)}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl shadow-md transition-colors"
+              >
+                យល់ព្រម (រួចរាល់)
+              </button>
+            </div>
           </div>
         </div>
       )}
