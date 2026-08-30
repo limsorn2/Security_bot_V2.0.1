@@ -4,6 +4,8 @@ import time
 import logging
 import asyncio
 import json
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime, timedelta
 from collections import defaultdict
 import requests
@@ -2269,17 +2271,234 @@ def main():
     app.add_handler(MessageHandler(filters.Document.ALL, file_inspector))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_inspector))
 
+class WebStatusHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        try:
+            groups_data = read_json(GROUPS_FILE, {})
+            clients_data = read_json(CLIENTS_FILE, {})
+            
+            # Generate Web App HTML Status Page
+            html_content = f"""<!DOCTYPE html>
+<html lang="km">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🛡️ Telegram Security Guard Bot - System Online</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+        body {{
+            font-family: 'Kantumruy Pro', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #090d16;
+            color: #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }}
+        .card {{
+            background: #111827;
+            border: 1px solid #1f2937;
+            border-radius: 16px;
+            max-width: 520px;
+            width: 100%;
+            padding: 28px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+            text-align: center;
+        }}
+        .badge {{
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            padding: 6px 14px;
+            border-radius: 9999px;
+            font-size: 13px;
+            font-weight: 700;
+            margin-bottom: 18px;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }}
+        .pulse {{
+            width: 8px;
+            height: 8px;
+            background: #34d399;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #34d399;
+        }}
+        h1 {{
+            font-size: 22px;
+            color: #ffffff;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }}
+        p.subtitle {{
+            color: #9ca3af;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }}
+        .stats-grid {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 24px;
+            text-align: left;
+        }}
+        .stat-box {{
+            background: #1f2937;
+            padding: 14px 16px;
+            border-radius: 12px;
+            border: 1px solid #374151;
+        }}
+        .stat-box .num {{
+            font-size: 20px;
+            font-weight: 700;
+            color: #38bdf8;
+        }}
+        .stat-box .label {{
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 2px;
+        }}
+        .btn {{
+            display: block;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: white;
+            text-decoration: none;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            transition: opacity 0.2s;
+        }}
+        .btn:hover {{ opacity: 0.9; }}
+        .footer {{
+            margin-top: 18px;
+            font-size: 12px;
+            color: #6b7280;
+        }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="badge">
+            <div class="pulse"></div>
+            <span>Bot Web Status: 24/7 ONLINE</span>
+        </div>
+        <h1>🛡️ ប្រព័ន្ធការពារ Telegram Bot</h1>
+        <p class="subtitle">Security Guard Bot V2.0.1 ដំណើរការលើ Cloud</p>
+
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="num">{len(groups_data)} ក្រុម</div>
+                <div class="label">👥 ក្រុមដែលកំពុងការពារ</div>
+            </div>
+            <div class="stat-box">
+                <div class="num">{len(clients_data)} នាក់</div>
+                <div class="label">👤 អតិថិជនសកម្ម</div>
+            </div>
+        </div>
+
+        <a href="https://t.me/PPTC_bot" class="btn" target="_blank">📱 បើក Telegram Bot (@PPTC_bot)</a>
+        <div class="footer">
+            Server Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}<br>
+            Master Admin ID: 240224709
+        </div>
+    </div>
+</body>
+</html>"""
+            self.send_response(200)
+            self.send_header("Content-type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(html_content.encode("utf-8"))
+        except Exception as e:
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(f"Error: {e}".encode("utf-8"))
+
+    def log_message(self, format, *args):
+        # Silence default standard log spam
+        return
+
+def run_web_server(port: int):
+    try:
+        server = HTTPServer(("0.0.0.0", port), WebStatusHandler)
+        logger.info(f"🌐 Web Status App ដំណើរការលើ Port: {port} (ឆ្លើយតប 200 OK លើ Browser)")
+        server.serve_forever()
+    except Exception as e:
+        logger.warning(f"Web server warning: {e}")
+
+def main():
+    if not BOT_TOKEN:
+        logger.error("❌ BOT_TOKEN is required in environment!")
+        sys.exit(1)
+
+    logger.info("🚀 កំពុងចាប់ផ្តើម Security_bot_V2.0.1 ជាមួយ Full Commands & Expiry Direct Alerts...")
+    
+    # ----------------- CLOUD DATABASE INITIALIZATION & STARTUP SYNC -----------------
+    init_cloud_database()
+    cloud_sync_on_startup()
+
+    app = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init_setup).build()
+
+    # User & Group Commands
+    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("id", id_command))
+    app.add_handler(CommandHandler("groupid", id_command))
+    app.add_handler(CommandHandler("myid", id_command))
+    app.add_handler(CommandHandler("chatid", id_command))
+    app.add_handler(CommandHandler("status", status_command))
+    app.add_handler(CommandHandler("license", license_command))
+    app.add_handler(CommandHandler("plan", license_command))
+    app.add_handler(CommandHandler("rules", rules_command))
+    app.add_handler(CommandHandler("addgroup", addgroup_command))
+    app.add_handler(CommandHandler("clearkeyboard", clear_keyboard_command))
+    app.add_handler(CommandHandler("clearbuttons", clear_keyboard_command))
+    app.add_handler(CommandHandler("nobuttons", clear_keyboard_command))
+    app.add_handler(CommandHandler("resetmenu", clear_keyboard_command))
+
+    # Master Super Admin Commands
+    app.add_handler(CommandHandler("admin", admin_panel_command))
+    app.add_handler(CommandHandler("panel", admin_panel_command))
+    app.add_handler(CommandHandler("groups", groups_list_command))
+    app.add_handler(CommandHandler("list", groups_list_command))
+    app.add_handler(CommandHandler("delgroup", delete_group_command))
+    app.add_handler(CommandHandler("deletegroup", delete_group_command))
+    app.add_handler(CommandHandler("removegroup", delete_group_command))
+    app.add_handler(CommandHandler("adddays", adddays_command))
+    app.add_handler(CommandHandler("approve", approve_command))
+    app.add_handler(CommandHandler("check", check_command))
+    app.add_handler(CommandHandler("leave", leave_group_command))
+    app.add_handler(CommandHandler("leavegroup", leave_group_command))
+    app.add_handler(CommandHandler("remindadmin", remind_admin_command))
+    app.add_handler(CommandHandler("backup", backup_command))
+    app.add_handler(CommandHandler("dbstatus", dbstatus_command))
+    app.add_handler(CommandHandler("cloud", dbstatus_command))
+    app.add_handler(CommandHandler("synccloud", synccloud_command))
+    app.add_handler(CommandHandler("notifyexpiry", notify_expiry_manual_command))
+    app.add_handler(CommandHandler("restore", restore_database_command))
+    app.add_handler(CommandHandler("restoredb", restore_database_command))
+    app.add_handler(CommandHandler("recover", restore_database_command))
+
+    # Callback Query (Buttons)
+    app.add_handler(CallbackQueryHandler(callback_query_handler))
+
+    # Message & Member Update Handlers
+    app.add_handler(ChatMemberHandler(my_chat_member_handler, ChatMemberHandler.MY_CHAT_MEMBER))
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, chat_member_update_handler))
+    app.add_handler(MessageHandler(filters.Document.ALL, file_inspector))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_inspector))
+
     PORT = int(os.environ.get("PORT", "10000"))
-    if APP_URL:
-        logger.info(f"✅ កំពុងដំណើរការ Webhook លើ Port: {PORT} ជាមួយ Link: {APP_URL}")
-        app.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            webhook_url=APP_URL
-        )
-    else:
-        logger.info("🟢 កំពុងដំណើរការ Bot ជា Polling mode...")
-        app.run_polling(drop_pending_updates=True)
+    
+    # Start Web App Server in background thread so Render Health Check passes 100%
+    web_thread = threading.Thread(target=run_web_server, args=(PORT,), daemon=True)
+    web_thread.start()
+
+    logger.info("🟢 កំពុងដំណើរការ Telegram Bot ជា Polling mode ២៤/៧...")
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
