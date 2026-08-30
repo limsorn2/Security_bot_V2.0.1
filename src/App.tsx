@@ -59,7 +59,7 @@ const DEFAULT_FALLBACK_SETTINGS: BotSettings = {
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("mobile_portal");
   const [groups, setGroups] = useState<Record<string, GroupConfig>>({});
   const [clients, setClients] = useState<Record<string, ClientCRM>>({});
   const [logs, setLogs] = useState<SecurityAuditLog[]>([]);
