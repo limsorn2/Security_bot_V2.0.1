@@ -139,14 +139,58 @@ def get_admin_action_keyboard(group_id: str):
             InlineKeyboardButton("➕ ផ្ដល់ 30 ថ្ងៃ", callback_data=f"adm_add30_{group_id}"),
         ],
         [
+            InlineKeyboardButton("➕ ផ្ដល់ 90 ថ្ងៃ", callback_data=f"adm_add90_{group_id}"),
             InlineKeyboardButton("👑 ផ្ដល់ Lifetime VIP", callback_data=f"adm_life_{group_id}"),
-            InlineKeyboardButton("🔴 ដកសិទ្ធិ (Revoke)", callback_data=f"adm_revoke_{group_id}"),
         ],
         [
-            InlineKeyboardButton("🔍 ពិនិត្យលម្អិត", callback_data=f"adm_check_{group_id}"),
+            InlineKeyboardButton("📢 ក្រើនរំលឹក Promote Admin", callback_data=f"adm_remind_{group_id}"),
+            InlineKeyboardButton("🚪 ចាកចេញពីក្រុម (Leave)", callback_data=f"adm_leave_{group_id}"),
+        ],
+        [
+            InlineKeyboardButton("🔴 ដកសិទ្ធិ (Revoke)", callback_data=f"adm_revoke_{group_id}"),
+            InlineKeyboardButton("🔍 ពិនិត្យ Profile & ប្រវត្តិ", callback_data=f"adm_check_{group_id}"),
+        ],
+        [
+            InlineKeyboardButton("🔙 ត្រឡប់ទៅបញ្ជី", callback_data="adm_list_groups"),
             InlineKeyboardButton("❌ បិទសារ", callback_data="btn_close"),
         ]
     ]
+    return InlineKeyboardMarkup(keyboard)
+
+def get_groups_interactive_keyboard():
+    """បង្កើតប៊ូតុងបញ្ជីឈ្មោះក្រុម/អតិថិជនទាំងអស់ឱ្យ Master Admin អាចចុចលើឈ្មោះមួយៗបានភ្លាមៗ"""
+    groups = read_json(GROUPS_FILE, {})
+    keyboard = []
+    if not groups:
+        keyboard.append([InlineKeyboardButton("❌ មិនទាន់មានក្រុមក្នុងបញ្ជីនៅឡើយទេ", callback_data="none")])
+    else:
+        for cid, g in groups.items():
+            title = g.get("title", f"Group {cid}")
+            is_auth = g.get("is_authorized", False)
+            is_en = g.get("is_enabled", False)
+            is_life = g.get("is_lifetime", False)
+            
+            if is_life:
+                status_icon = "👑 [VIP]"
+            elif is_auth and is_en:
+                status_icon = "🟢 [ON]"
+            elif is_auth and not is_en:
+                status_icon = "🟡 [PAUSE]"
+            else:
+                status_icon = "🔴 [OFF]"
+
+            # ប៊ូតុងឈ្មោះក្រុម ដែលចុចទៅមើលប្រវត្តិ រយៈពេលប្រើ និងកំណត់សិទ្ធិ
+            btn_text = f"{status_icon} {title[:20]}"
+            keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"adm_check_{cid}")])
+
+    keyboard.append([
+        InlineKeyboardButton("🔄 Refresh បញ្ជី", callback_data="adm_list_groups"),
+        InlineKeyboardButton("💾 ទាញយក Backup", callback_data="adm_backup"),
+    ])
+    keyboard.append([
+        InlineKeyboardButton("🔍 ស្កេនក្រុមផុតកំណត់", callback_data="adm_scan_expiry"),
+        InlineKeyboardButton("❌ បិទផ្ទាំង", callback_data="btn_close"),
+    ])
     return InlineKeyboardMarkup(keyboard)
 
 # ----------------- 2-WAY SYNC & AUTO-REGISTRATION HELPERS -----------------
@@ -659,30 +703,18 @@ async def admin_panel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     active_grps = sum(1 for g in groups.values() if g.get("is_authorized") and g.get("is_enabled"))
 
     text = (
-        "👑 <b>ផ្ទាំងបញ្ជា MASTER SUPER ADMIN PANEL</b>\n"
+        "👑 <b>ផ្ទាំងបញ្ជាគ្រប់គ្រង SOLE MASTER ADMIN PANEL</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        f"👥 <b>ក្រុមសរុបក្នុងបញ្ជី:</b> {total_grps} ក្រុម\n"
+        f"👥 <b>ក្រុមសរុបក្នុងប្រព័ន្ធ:</b> {total_grps} ក្រុម\n"
         f"🟢 <b>ក្រុមសកម្ម (Active):</b> {active_grps} ក្រុម\n"
         f"🟡 <b>ក្រុមរង់ចាំ/ផុតកំណត់:</b> {total_grps - active_grps} ក្រុម\n\n"
-        "📋 <b>បញ្ជាមានប្រយោជន៍៖</b>\n"
-        "• <code>/groups</code> - មើលបញ្ជីក្រុមទាំងអស់\n"
-        "• <code>/adddays &lt;group_id&gt; &lt;days&gt;</code> - បន្ថែមថ្ងៃ\n"
-        "• <code>/approve &lt;group_id&gt;</code> - អនុញ្ញាត 7 ថ្ងៃ Trial\n"
-        "• <code>/backup</code> - ទាញយក Database JSON\n"
-        "• <code>/notifyexpiry</code> - ស្កេន & ផ្ញើសារផុតកំណត់\n"
+        "👇 <b>សូមចុចលើប៊ូតុងឈ្មោះក្រុមខាងក្រោម ដើម្បី៖</b>\n"
+        "• 🔍 ពិនិត្យ Profile និងប្រវត្តិនៃការប្រើប្រាស់\n"
+        "• ⏳ កំណត់រយៈពេល (Trial 7D, +30D, +90D, Lifetime)\n"
+        "• 🛡️ កំណត់សិទ្ធិ (Active, Pause, Revoke)\n"
         "━━━━━━━━━━━━━━━━━━━━"
     )
-    keyboard = [
-        [
-            InlineKeyboardButton("📋 បញ្ជីក្រុមទាំងអស់", callback_data="adm_list_groups"),
-            InlineKeyboardButton("💾 ទាញយក Backup", callback_data="adm_backup"),
-        ],
-        [
-            InlineKeyboardButton("🔍 ស្កេនក្រុមផុតកំណត់", callback_data="adm_scan_expiry"),
-            InlineKeyboardButton("❌ បិទផ្ទាំង", callback_data="btn_close"),
-        ]
-    ]
-    await send_clean_bot_response(update, context, text, reply_markup=InlineKeyboardMarkup(keyboard), delete_seconds=60)
+    await send_clean_bot_response(update, context, text, reply_markup=get_groups_interactive_keyboard(), delete_seconds=120)
 
 async def groups_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -693,15 +725,12 @@ async def groups_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not groups:
         return await send_clean_bot_response(update, context, "📋 មិនទាន់មានក្រុមណាមួយក្នុងបញ្ជីឡើយ!", delete_seconds=15)
 
-    text = f"📋 <b>បញ្ជីគ្រប់គ្រងក្រុមទាំងអស់ ({len(groups)} ក្រុម):</b>\n━━━━━━━━━━━━━━━━━━━━\n"
-    for idx, (cid, g) in enumerate(groups.items(), 1):
-        status_icon = "🟢" if g.get("is_authorized") and g.get("is_enabled") else "🟡"
-        title = g.get("title", f"Group {cid}")
-        exp = g.get("expiry_date", "N/A")
-        text += f"{idx}. {status_icon} <b>{title}</b>\n   ID: <code>{cid}</code> | Exp: <code>{exp}</code>\n"
-
-    text += "━━━━━━━━━━━━━━━━━━━━\n💡 <i>ប្រើ <code>/check &lt;group_id&gt;</code> ដើម្បីមើលលម្អិត</i>"
-    await send_clean_bot_response(update, context, text, delete_seconds=60)
+    text = (
+        f"📋 <b>បញ្ជីឈ្មោះអតិថិជន & ក្រុមទាំងអស់ ({len(groups)} ក្រុម):</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "👇 <i>សូមចុចលើប៊ូតុងឈ្មោះក្រុម ដើម្បីមើលប្រវត្តិ រយៈពេលប្រើ និងកំណត់សិទ្ធិ៖</i>"
+    )
+    await send_clean_bot_response(update, context, text, reply_markup=get_groups_interactive_keyboard(), delete_seconds=120)
 
 async def adddays_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -880,6 +909,116 @@ async def backup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
 
+async def send_admin_promote_reminder(context: ContextTypes.DEFAULT_TYPE, chat_id: str, chat_title: str, admin_name: str = "", admin_username: str = "", admin_id: str = ""):
+    """ផ្ញើសារដាស់តឿនជាបន្ទាន់ឱ្យ Promote Bot ទៅជា Admin ក្នុងគ្រុប និងផ្ញើទៅ Admin ផ្ទាល់"""
+    tag_str = f"@{admin_username.lstrip('@')}" if admin_username else (admin_name or "អេដមីន")
+    remind_text = (
+        "⚠️ <b>[ការក្រើនរំលឹកជាបន្ទាន់ - PROMOTE BOT TO ADMIN]</b> ⚠️\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        f"👋 <b>សូមជម្រាបសួរ {tag_str}!</b>\n\n"
+        f"🛡️ ដើម្បីឱ្យ Bot អាចការពារក្រុម <code>{chat_title}</code> បានពេញលេញ 100%៖\n"
+        "• 🚫 <b>លុបមេរោគបោកប្រាស់</b> (<code>.apk, .exe, .bat</code>)\n"
+        "• 🌊 <b>ទប់ស្កាត់សារ Flood / Spam & Phishing Link</b>\n\n"
+        "👉 <b>សូមចូលទៅកាន់ Group Settings ➡️ Administrators ➡️ បន្ថែម Bot ជា Admin ដោយបើកសិទ្ធិ៖</b>\n"
+        "✅ <b>1. Delete Messages (លុបសារមេរោគ)</b>\n"
+        "✅ <b>2. Ban / Restrict Users (រារាំងគណនីបន្លំ)</b>\n\n"
+        "💡 <i>ប្រសិនបើមិនទាន់ Promote ជា Admin ទេ Bot នឹងមិនមានសិទ្ធិលុបសារគ្រោះថ្នាក់បានឡើយ!</i>\n"
+        "━━━━━━━━━━━━━━━━━━━━"
+    )
+    
+    # 1. Send in group
+    try:
+        await context.bot.send_message(
+            chat_id=int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id,
+            text=remind_text,
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        logger.warning(f"Could not send promote reminder to group {chat_id}: {e}")
+
+    # 2. Send to Admin's private DM if known
+    if admin_id and str(admin_id).isdigit() and str(admin_id) != str(ADMIN_ID):
+        try:
+            await context.bot.send_message(
+                chat_id=int(admin_id),
+                text=remind_text,
+                parse_mode="HTML"
+            )
+        except Exception:
+            pass
+
+async def remind_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if not user or not is_admin(user.id):
+        return
+
+    args = context.args
+    chat = update.effective_chat
+    target_cid = args[0].strip() if args else (str(chat.id) if chat and chat.type in ["group", "supergroup"] else None)
+
+    if not target_cid:
+        return await send_clean_bot_response(update, context, "⚠️ <b>ទម្រង់៖</b> <code>/remindadmin &lt;group_id&gt;</code>", delete_seconds=10)
+
+    groups = read_json(GROUPS_FILE, {})
+    g = groups.get(target_cid, {})
+    g_title = g.get("title", f"Group {target_cid}")
+    adder_name = g.get("added_by_name", "")
+    adder_username = g.get("added_by_username", "")
+    adder_id = g.get("added_by_id", "")
+
+    await send_admin_promote_reminder(context, target_cid, g_title, adder_name, adder_username, adder_id)
+    await send_clean_bot_response(update, context, f"📢 <b>បានផ្ញើសារដាស់តឿនឱ្យ Promote Bot ជា Admin ទៅកាន់ក្រុម <code>{g_title}</code> រួចរាល់!</b>", delete_seconds=15)
+
+async def leave_group_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if not user or not is_admin(user.id):
+        return
+
+    chat = update.effective_chat
+    args = context.args
+    target_cid = None
+    if args:
+        target_cid = args[0].strip()
+    elif chat and chat.type in ["group", "supergroup"]:
+        target_cid = str(chat.id)
+
+    if not target_cid:
+        return await send_clean_bot_response(update, context, "⚠️ <b>ទម្រង់បញ្ជា៖</b> <code>/leave &lt;group_id&gt;</code>", delete_seconds=10)
+
+    groups = read_json(GROUPS_FILE, {})
+    clients = read_json(CLIENTS_FILE, {})
+    g_title = groups.get(target_cid, {}).get("title", f"Group {target_cid}")
+
+    # 1. Send farewell message to group
+    try:
+        await context.bot.send_message(
+            chat_id=int(target_cid) if target_cid.lstrip("-").isdigit() else target_cid,
+            text="👋 <b>Bot បានចាកចេញពីក្រុមនេះតាមបញ្ជារបស់ Master Admin!</b>\n\n🛡️ ប្រព័ន្ធការពារសុវត្ថិភាពត្រូវបានបិទ។ សូមអរគុណសម្រាប់ការប្រើប្រាស់!",
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        logger.debug(f"Could not send goodbye message to group {target_cid}: {e}")
+
+    # 2. Leave the chat
+    try:
+        await context.bot.leave_chat(chat_id=int(target_cid) if target_cid.lstrip("-").isdigit() else target_cid)
+    except Exception as err:
+        logger.warning(f"Error leaving chat {target_cid}: {err}")
+
+    # 3. Update status in database
+    if target_cid in groups:
+        groups[target_cid]["is_authorized"] = False
+        groups[target_cid]["is_enabled"] = False
+        groups[target_cid]["plan_type"] = "🔴 Left Group (Bot បានចាកចេញ)"
+        write_json(GROUPS_FILE, groups)
+
+    if target_cid in clients:
+        clients[target_cid]["license_status"] = "🔴 BOT LEFT (ចាកចេញពីក្រុម)"
+        clients[target_cid]["plan_type"] = "🔴 Left Group (Bot បានចាកចេញ)"
+        write_json(CLIENTS_FILE, clients)
+
+    await send_clean_bot_response(update, context, f"🚪 <b>បានបញ្ជាឱ្យ Bot ចាកចេញពីក្រុម <code>{g_title}</code> (ID: <code>{target_cid}</code>) ដោយជោគជ័យ!</b>", delete_seconds=20)
+
 async def notify_expiry_manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not user or not is_admin(user.id):
@@ -1026,6 +1165,81 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
         now = datetime.now()
         now_str = now.strftime("%Y-%m-%d %H:%M:%S")
 
+        if action_type == "list" or action_type == "list_groups":
+            text = (
+                f"📋 <b>បញ្ជីឈ្មោះអតិថិជន & ក្រុមទាំងអស់ ({len(groups)} ក្រុម):</b>\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                "👇 <i>សូមចុចលើឈ្មោះក្រុម ដើម្បីមើល Profile, ប្រវត្តិ និងកំណត់សិទ្ធិ៖</i>"
+            )
+            try:
+                await query.edit_message_text(text, parse_mode="HTML", reply_markup=get_groups_interactive_keyboard())
+            except Exception:
+                pass
+            return
+
+        elif action_type == "backup":
+            backup_data = {
+                "export_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "total_groups": len(groups),
+                "groups": groups,
+                "clients": clients
+            }
+            json_bytes = json.dumps(backup_data, ensure_ascii=False, indent=2).encode("utf-8")
+            try:
+                await context.bot.send_document(
+                    chat_id=user.id,
+                    document=json_bytes,
+                    filename=f"vault_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                    caption=f"💾 <b>ទិន្នន័យបម្រុងទុក (Cloud Backup)</b>\nសរុប {len(groups)} ក្រុម",
+                    parse_mode="HTML"
+                )
+            except Exception:
+                pass
+            return
+
+        elif action_type == "scan_expiry":
+            await check_and_notify_expired_groups(context)
+            try:
+                await query.edit_message_text("✅ <b>បានស្កេន និងផ្ញើសារដាស់តឿនផុតកំណត់ទៅកាន់ Group Admin ផ្ទាល់រួចរាល់!</b>", parse_mode="HTML", reply_markup=get_groups_interactive_keyboard())
+            except Exception:
+                pass
+            return
+
+        elif action_type == "check" and target_cid in groups:
+            g = groups[target_cid]
+            c = clients.get(target_cid, {})
+            c_contact = c.get("customer_contact", {})
+            history = c.get("purchase_history", [])
+            history_str = ""
+            for h in history[-3:]:
+                history_str += f"\n   • {h.get('package')} ({h.get('purchased_date', '')})"
+            if not history_str:
+                history_str = "\n   • មិនទាន់មានប្រវត្តិទិញ"
+
+            info_text = (
+                f"🗂️ <b>[PROFILE អតិថិជន & កំណត់សិទ្ធិក្រុម]</b>\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                f"👥 <b>ឈ្មោះក្រុម:</b> <code>{g.get('title')}</code>\n"
+                f"📍 <b>Group ID:</b> <code>{target_cid}</code>\n"
+                f"👤 <b>អ្នកប្រើប្រាស់/Admin:</b> {c_contact.get('name', g.get('added_by_name'))} ({c_contact.get('username', g.get('added_by_username'))})\n"
+                f"🔑 <b>User ID:</b> <code>{c_contact.get('user_id', g.get('added_by_id'))}</code>\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                f"🛒 <b>កញ្ចប់សេវាបច្ចុប្បន្ន:</b> {g.get('plan_type')}\n"
+                f"📅 <b>ថ្ងៃចុះឈ្មោះ:</b> <code>{g.get('added_at', 'N/A')}</code>\n"
+                f"📅 <b>ថ្ងៃបើកសិទ្ធិ:</b> <code>{g.get('activated_date', 'N/A')}</code>\n"
+                f"⏳ <b>ថ្ងៃផុតកំណត់:</b> <code>{g.get('expiry_date', 'N/A')}</code>\n"
+                f"🛡️ <b>ស្ថានភាព:</b> {'🟢 Active (កំពុងការពារ)' if g.get('is_authorized') and g.get('is_enabled') else '🔴 Inactive / Revoked'}\n"
+                f"🚫 <b>មេរោគរារាំងបាន:</b> {g.get('threats_blocked_count', 0)} ករណី\n\n"
+                f"📜 <b>ប្រវត្តិប្រើប្រាស់/ទិញកញ្ចប់:</b>{history_str}\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                "👇 <i>សូមជ្រើសរើសសកម្មភាព ឬកំណត់រយៈពេលប្រើប្រាស់ខាងក្រោម៖</i>"
+            )
+            try:
+                await query.edit_message_text(info_text, parse_mode="HTML", reply_markup=get_admin_action_keyboard(target_cid))
+            except Exception:
+                pass
+            return
+
         if action_type == "trial" and target_cid in groups:
             exp_str = (now + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
             groups[target_cid]["is_authorized"] = True
@@ -1036,7 +1250,7 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             write_json(GROUPS_FILE, groups)
             write_json(CLIENTS_FILE, clients)
             try:
-                await query.edit_message_text(f"✅ បានអនុញ្ញាត Free Trial 7 ថ្ងៃ ដល់ {groups[target_cid]['title']} រួចរាល់!\nផុតកំណត់៖ <code>{exp_str}</code>", parse_mode="HTML")
+                await query.edit_message_text(f"✅ <b>បានអនុញ្ញាត Free Trial 7 ថ្ងៃ ដល់ {groups[target_cid]['title']} រួចរាល់!</b>\nផុតកំណត់៖ <code>{exp_str}</code>", parse_mode="HTML", reply_markup=get_admin_action_keyboard(target_cid))
             except Exception:
                 pass
 
@@ -1050,7 +1264,21 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             write_json(GROUPS_FILE, groups)
             write_json(CLIENTS_FILE, clients)
             try:
-                await query.edit_message_text(f"✅ បានបន្ថែម 30 ថ្ងៃដល់ {groups[target_cid]['title']} រួចរាល់!\nផុតកំណត់៖ <code>{exp_str}</code>", parse_mode="HTML")
+                await query.edit_message_text(f"✅ <b>បានបន្ថែម 30 ថ្ងៃដល់ {groups[target_cid]['title']} រួចរាល់!</b>\nផុតកំណត់៖ <code>{exp_str}</code>", parse_mode="HTML", reply_markup=get_admin_action_keyboard(target_cid))
+            except Exception:
+                pass
+
+        elif action_type == "add90" and target_cid in groups:
+            exp_str = (now + timedelta(days=90)).strftime("%Y-%m-%d %H:%M:%S")
+            groups[target_cid]["is_authorized"] = True
+            groups[target_cid]["is_enabled"] = True
+            groups[target_cid]["plan_type"] = "Plan 90 Days (កញ្ចប់ ៩០ ថ្ងៃ)"
+            groups[target_cid]["activated_date"] = now_str
+            groups[target_cid]["expiry_date"] = exp_str
+            write_json(GROUPS_FILE, groups)
+            write_json(CLIENTS_FILE, clients)
+            try:
+                await query.edit_message_text(f"✅ <b>បានបន្ថែម 90 ថ្ងៃដល់ {groups[target_cid]['title']} រួចរាល់!</b>\nផុតកំណត់៖ <code>{exp_str}</code>", parse_mode="HTML", reply_markup=get_admin_action_keyboard(target_cid))
             except Exception:
                 pass
 
@@ -1064,7 +1292,7 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             write_json(GROUPS_FILE, groups)
             write_json(CLIENTS_FILE, clients)
             try:
-                await query.edit_message_text(f"👑 បានផ្ដល់ Lifetime VIP ដល់ {groups[target_cid]['title']} រួចរាល់!", parse_mode="HTML")
+                await query.edit_message_text(f"👑 <b>បានផ្ដល់ Lifetime VIP ដល់ {groups[target_cid]['title']} រួចរាល់!</b>", parse_mode="HTML", reply_markup=get_admin_action_keyboard(target_cid))
             except Exception:
                 pass
 
@@ -1075,7 +1303,54 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             write_json(GROUPS_FILE, groups)
             write_json(CLIENTS_FILE, clients)
             try:
-                await query.edit_message_text(f"🔴 បានដកសិទ្ធិក្រុម {groups[target_cid]['title']} រួចរាល់!", parse_mode="HTML")
+                await query.edit_message_text(f"🔴 <b>បានដកសិទ្ធិក្រុម {groups[target_cid]['title']} រួចរាល់!</b>", parse_mode="HTML", reply_markup=get_admin_action_keyboard(target_cid))
+            except Exception:
+                pass
+
+        elif action_type == "remind" and target_cid in groups:
+            g = groups[target_cid]
+            g_title = g.get("title", f"Group {target_cid}")
+            adder_name = g.get("added_by_name", "")
+            adder_username = g.get("added_by_username", "")
+            adder_id = g.get("added_by_id", "")
+            await send_admin_promote_reminder(context, target_cid, g_title, adder_name, adder_username, adder_id)
+            try:
+                await query.edit_message_text(f"📢 <b>បានផ្ញើសារដាស់តឿនឱ្យ Promote Bot ទៅកាន់ក្រុម {g_title} រួចរាល់!</b>", parse_mode="HTML", reply_markup=get_admin_action_keyboard(target_cid))
+            except Exception:
+                pass
+
+        elif action_type == "leave" and target_cid in groups:
+            g = groups[target_cid]
+            g_title = g.get("title", f"Group {target_cid}")
+            # 1. Send farewell message
+            try:
+                await context.bot.send_message(
+                    chat_id=int(target_cid) if target_cid.lstrip("-").isdigit() else target_cid,
+                    text="👋 <b>Bot បានចាកចេញពីក្រុមនេះតាមបញ្ជារបស់ Master Admin!</b>\n\n🛡️ ប្រព័ន្ធការពារសុវត្ថិភាពត្រូវបានបិទ។ សូមអរគុណសម្រាប់ការប្រើប្រាស់!",
+                    parse_mode="HTML"
+                )
+            except Exception:
+                pass
+
+            # 2. Leave group
+            try:
+                await context.bot.leave_chat(chat_id=int(target_cid) if target_cid.lstrip("-").isdigit() else target_cid)
+            except Exception as e:
+                logger.warning(f"Error in callback leave_chat: {e}")
+
+            # 3. Update DB
+            groups[target_cid]["is_authorized"] = False
+            groups[target_cid]["is_enabled"] = False
+            groups[target_cid]["plan_type"] = "🔴 Left Group (Bot បានចាកចេញ)"
+            write_json(GROUPS_FILE, groups)
+
+            if target_cid in clients:
+                clients[target_cid]["license_status"] = "🔴 BOT LEFT (ចាកចេញពីក្រុម)"
+                clients[target_cid]["plan_type"] = "🔴 Left Group (Bot បានចាកចេញ)"
+                write_json(CLIENTS_FILE, clients)
+
+            try:
+                await query.edit_message_text(f"🚪 <b>Bot បានចាកចេញពីក្រុម <code>{g_title}</code> (ID: <code>{target_cid}</code>) ដោយជោគជ័យ!</b>", parse_mode="HTML", reply_markup=get_groups_interactive_keyboard())
             except Exception:
                 pass
 
@@ -1340,6 +1615,8 @@ async def post_init_setup(application):
         admin_commands = public_commands + [
             BotCommand("admin", "👑 ផ្ទាំងបញ្ជា Master Admin Panel"),
             BotCommand("groups", "📋 បញ្ជីគ្រប់គ្រងក្រុម"),
+            BotCommand("leave", "🚪 បញ្ជាឱ្យ Bot ចាកចេញពីក្រុម (/leave <id>)"),
+            BotCommand("remindadmin", "📢 ផ្ញើសារដាស់តឿន Promote Bot ជា Admin"),
             BotCommand("backup", "💾 ទាញយក Backup (.json)"),
         ]
         await application.bot.set_my_commands(admin_commands, scope=BotCommandScopeAllChatAdministrators())
@@ -1384,6 +1661,9 @@ def main():
     app.add_handler(CommandHandler("adddays", adddays_command))
     app.add_handler(CommandHandler("approve", approve_command))
     app.add_handler(CommandHandler("check", check_command))
+    app.add_handler(CommandHandler("leave", leave_group_command))
+    app.add_handler(CommandHandler("leavegroup", leave_group_command))
+    app.add_handler(CommandHandler("remindadmin", remind_admin_command))
     app.add_handler(CommandHandler("backup", backup_command))
     app.add_handler(CommandHandler("notifyexpiry", notify_expiry_manual_command))
 

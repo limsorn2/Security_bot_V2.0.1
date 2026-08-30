@@ -198,7 +198,7 @@ export const BotSimulator: React.FC<BotSimulatorProps> = ({
   };
 
   // Master command parser
-  const handleMasterCommand = (cmd: string) => {
+  const handleMasterCommand = async (cmd: string) => {
     const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
     // User message in private
@@ -233,18 +233,17 @@ export const BotSimulator: React.FC<BotSimulatorProps> = ({
         gButtons
       );
     } else if (cmd === "📋 បញ្ជីអតិថិជន & Group" || cmd === "/clients" || cmd === "/groups") {
-      let report = "🗄️ **[ប្រព័ន្ធគ្រប់គ្រងអតិថិជន & ប្រវត្តិក្រុម - CLIENT CRM VAULT]** 🗄️\n━━━━━━━━━━━━━━━━━━━━\n\n";
-      (Object.entries(clients) as [string, ClientCRM][]).forEach(([cid, cdata], idx) => {
-        report += `**${idx + 1}. ${cdata.client_group_name}**\n`;
-        report += `   • 🆔 Group ID: \`${cid}\`\n`;
-        report += `   • 🔰 ស្ថានភាពសេវា: ${cdata.license_status}\n`;
-        report += `   • 🛒 កញ្ចប់: ${cdata.plan_type}\n`;
-        report += `   • 👤 អតិថិជន: ${cdata.customer_contact.name} (${cdata.customer_contact.username})\n`;
-        report += `   • ⌛ ថ្ងៃផុតកំណត់: \`${cdata.expiry_date}\`\n`;
-        report += `   • 🛡️ ស្ថិតិ: ☣️ ${cdata.security_stats.threats_blocked} មេរោគ | 🌊 ${cdata.security_stats.spams_blocked} Spams\n`;
-        report += "────────────────────\n";
+      let report = "🗄️ **[ប្រព័ន្ធគ្រប់គ្រងអតិថិជន & ប្រវត្តិក្រុម - CLIENT CRM VAULT]** 🗄️\n━━━━━━━━━━━━━━━━━━━━\n👇 **សូមចុចលើប៊ូតុងឈ្មោះក្រុមខាងក្រោម ដើម្បីមើលប្រវត្តិ រយៈពេលប្រើ និងកំណត់សិទ្ធិ៖**\n\n";
+      const gButtons: { label: string; action: string }[][] = [];
+      (Object.entries(groups) as [string, GroupConfig][]).forEach(([id, g]) => {
+        const status = g.is_authorized && g.is_enabled ? "🟢 [ON]" : g.is_authorized ? "🟡 [PAUSE]" : "🔴 [OFF]";
+        gButtons.push([{ label: `${status} ${g.title.substring(0, 20)}`, action: `manage_grp_${id}` }]);
       });
-      addPrivateBotMessage(report);
+      gButtons.push([
+        { label: "🔄 Refresh បញ្ជី", action: "dash_refresh" },
+        { label: "💾 ទាញយក Backup", action: "dash_backup" }
+      ]);
+      addPrivateBotMessage(report, gButtons);
     } else if (cmd === "📜 ប្រវត្តិការពារ & ការទិញបត" || cmd === "/logs") {
       let lReport = "📜 **[ប្រវត្តិការពារសន្តិសុខ & ការទិញបត - SECURITY AUDIT LOGS]**\n━━━━━━━━━━━━━━━━━━━━\n\n";
       lReport += "🛡️ **១. កំណត់ត្រាកំចាត់មេរោគចុងក្រោយ៖**\n";
@@ -286,16 +285,30 @@ export const BotSimulator: React.FC<BotSimulatorProps> = ({
           ]
         ]
       );
+    } else if (cmd.startsWith("/leave")) {
+      const parts = cmd.split(" ");
+      const targetCid = parts[1] || selectedGroupKey;
+      const gTitle = groups[targetCid]?.title || targetCid;
+      await onGroupAction(targetCid, "leave_group");
+      addPrivateBotMessage(`🚪 **បានបញ្ជាឱ្យ Bot ចាកចេញពីក្រុម \`${gTitle}\` (ID: \`${targetCid}\`) ដោយជោគជ័យ!**\n\n🛡️ Bot បានផ្ញើសារលា និងចាកចេញរួចរាល់។`);
+    } else if (cmd.startsWith("/remindadmin") || cmd.startsWith("/promotealert")) {
+      const parts = cmd.split(" ");
+      const targetCid = parts[1] || selectedGroupKey;
+      const gTitle = groups[targetCid]?.title || targetCid;
+      await onGroupAction(targetCid, "remind_promote");
+      addPrivateBotMessage(
+        `📢 **[បានផ្ញើសារដាស់តឿន Promote Bot ទៅកាន់ក្រុម \`${gTitle}\`]**\n━━━━━━━━━━━━━━━━━━━━\n⚠️ Bot បានផ្ញើសារក្រើនរំលឹកជាបន្ទាន់ទៅកាន់ Admin ក្នុង Group និង Private Chat ឱ្យបើកសិទ្ធិ Delete Messages & Ban Users រួចរាល់!`
+      );
     } else if (cmd.startsWith("/adddays")) {
       const parts = cmd.split(" ");
       const targetCid = parts[1] || selectedGroupKey;
       const days = parseInt(parts[2] || "30", 10);
-      onGroupAction(targetCid, "add_days", { days });
+      await onGroupAction(targetCid, "add_days", { days });
       addPrivateBotMessage(`✅ **បានបន្ថែម ${days} ថ្ងៃជូនក្រុម \`${groups[targetCid]?.title || targetCid}\` ជោគជ័យ!**`);
     } else if (cmd.startsWith("/approve")) {
       const parts = cmd.split(" ");
       const targetCid = parts[1] || selectedGroupKey;
-      onGroupAction(targetCid, "add_days", { days: 7 });
+      await onGroupAction(targetCid, "add_days", { days: 7 });
       addPrivateBotMessage(`🎁 **បានអនុញ្ញាត Free Trial 7 ថ្ងៃជូនក្រុម \`${groups[targetCid]?.title || targetCid}\` ជោគជ័យ!**`);
     } else if (cmd === "/license" || cmd === "/plan") {
       const targetGroup = groups[selectedGroupKey];
@@ -329,16 +342,20 @@ export const BotSimulator: React.FC<BotSimulatorProps> = ({
 
       const subButtons: { label: string; action: string }[][] = [
         [
-          { label: "➕ បន្ថែម 30 ថ្ងៃ (+30D)", action: `add_30_${gId}` },
-          { label: "➕ បន្ថែម 90 ថ្ងៃ (+90D)", action: `add_90_${gId}` }
+          { label: "🎁 អនុញ្ញាត Trial 7 ថ្ងៃ", action: `add_7_${gId}` },
+          { label: "➕ ផ្ដល់ 30 ថ្ងៃ", action: `add_30_${gId}` }
         ],
         [
-          { label: "👑 ពេញមួយជីវិត (Lifetime)", action: `set_life_${gId}` },
-          { label: "🔴 ដកសិទ្ធិ (Revoke)", action: `revoke_${gId}` }
+          { label: "➕ ផ្ដល់ 90 ថ្ងៃ", action: `add_90_${gId}` },
+          { label: "👑 ផ្ដល់ Lifetime VIP", action: `set_life_${gId}` }
+        ],
+        [
+          { label: "📢 ក្រើនរំលឹក Promote Admin", action: `remind_${gId}` },
+          { label: "🚪 ចាកចេញពីក្រុម (Leave)", action: `leave_${gId}` }
         ],
         [
           { label: g.is_enabled ? "🟡 ផ្អាក (PAUSE)" : "🟢 បើក (ON)", action: `toggle_en_${gId}` },
-          { label: "🗑️ លុប Group", action: `del_${gId}` }
+          { label: "🔴 ដកសិទ្ធិ (Revoke)", action: `revoke_${gId}` }
         ],
         [{ label: "🔙 ត្រឡប់ទៅ Dashboard", action: "dash_back" }]
       ];
@@ -347,6 +364,18 @@ export const BotSimulator: React.FC<BotSimulatorProps> = ({
         `🛠️ **[ផ្ទាំងគ្រប់គ្រងក្រុម - GROUP CONTROL PANEL]**\n━━━━━━━━━━━━━━━━━━━━\n👥 **ឈ្មោះក្រុម:** \`${g.title}\`\n🆔 **Group ID:** \`${gId}\`\n👤 **អតិថិជន:** ${c?.customer_contact.name || "N/A"} (${c?.customer_contact.username || "N/A"})\n━━━━━━━━━━━━━━━━━━━━\n🔰 **ស្ថានភាព:** ${g.is_authorized && g.is_enabled ? "🟢 ACTIVE (កំពុងការពារ)" : "🔴 INACTIVE"}\n🛒 **កញ្ចប់:** ${g.plan_type}\n⌛ **ថ្ងៃផុតកំណត់:** \`${g.expiry_date}\`\n☣️ **មេរោគបានទប់ស្កាត់:** \`${g.threats_blocked_count}\` ករណី\n━━━━━━━━━━━━━━━━━━━━\n👉 **សូមចុចប៊ូតុងខាងក្រោមដើម្បីកំណត់សិទ្ធិ ឬបន្ថែមថ្ងៃប្រើប្រាស់៖**`,
         subButtons
       );
+    } else if (action.startsWith("remind_")) {
+      const gId = action.replace("remind_", "");
+      const gTitle = groups[gId]?.title || gId;
+      await onGroupAction(gId, "remind_promote");
+      addPrivateBotMessage(
+        `📢 **[បានផ្ញើសារដាស់តឿន Promote Bot ទៅកាន់ក្រុម \`${gTitle}\`]**\n━━━━━━━━━━━━━━━━━━━━\n⚠️ Bot បានផ្ញើសារក្រើនរំលឹកជាបន្ទាន់ទៅកាន់ Admin ក្នុង Group និង Private Chat ឱ្យបើកសិទ្ធិ Delete Messages & Ban Users រួចរាល់!`
+      );
+    } else if (action.startsWith("leave_")) {
+      const gId = action.replace("leave_", "");
+      const gTitle = groups[gId]?.title || gId;
+      await onGroupAction(gId, "leave_group");
+      addPrivateBotMessage(`🚪 **បានបញ្ជាឱ្យ Bot ចាកចេញពីក្រុម \`${gTitle}\` (ID: \`${gId}\`) ដោយជោគជ័យ!**\n\n🛡️ Bot បានផ្ញើសារលា និងចាកចេញរួចរាល់។`);
     } else if (action.startsWith("add_30_")) {
       const gId = action.replace("add_30_", "");
       await onGroupAction(gId, "add_days", { days: 30 });

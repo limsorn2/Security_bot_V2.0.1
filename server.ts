@@ -546,6 +546,70 @@ app.post("/api/groups/:id/action", (req, res) => {
     if (clients[id]) {
       clients[id].license_status = "🔴 UNAUTHORIZED (បានដកសិទ្ធិ)";
     }
+  } else if (action === "leave_group") {
+    group.is_authorized = false;
+    group.is_enabled = false;
+    group.plan_type = "🔴 Left Group (Bot បានចាកចេញ)";
+    if (clients[id]) {
+      clients[id].license_status = "🔴 BOT LEFT (ចាកចេញពីក្រុម)";
+      clients[id].plan_type = "🔴 Left Group (Bot បានចាកចេញ)";
+    }
+    // Attempt Telegram API leaveChat if token available
+    const settings = readJsonFile(SETTINGS_FILE, DEFAULT_SETTINGS);
+    const botToken = process.env.BOT_TOKEN || (settings as any).bot_token;
+    if (botToken && !botToken.includes("YOUR_BOT_TOKEN")) {
+      try {
+        fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: id,
+            text: "👋 <b>Bot បានចាកចេញពីក្រុមនេះតាមបញ្ជារបស់ Master Admin!</b>\n\n🛡️ ប្រព័ន្ធការពារសុវត្ថិភាពត្រូវបានបិទ។ សូមអរគុណសម្រាប់ការប្រើប្រាស់!",
+            parse_mode: "HTML"
+          })
+        }).catch(() => {});
+
+        fetch(`https://api.telegram.org/bot${botToken}/leaveChat?chat_id=${id}`).catch(() => {});
+      } catch (err) {
+        console.warn("leaveChat API call error:", err);
+      }
+    }
+  } else if (action === "remind_promote") {
+    const settings = readJsonFile(SETTINGS_FILE, DEFAULT_SETTINGS);
+    const botToken = process.env.BOT_TOKEN || (settings as any).bot_token;
+    if (botToken && !botToken.includes("YOUR_BOT_TOKEN")) {
+      const gTitle = group.title || `Group ${id}`;
+      const adderUser = group.added_by_username || group.added_by_name || "អេដមីន";
+      const remindText = `⚠️ <b>[ការក្រើនរំលឹកជាបន្ទាន់ - PROMOTE BOT TO ADMIN]</b> ⚠️\n━━━━━━━━━━━━━━━━━━━━\n👋 <b>សូមជម្រាបសួរ ${adderUser}!</b>\n\n🛡️ ដើម្បីឱ្យ Bot អាចការពារក្រុម <code>${gTitle}</code> បានពេញលេញ 100%៖\n• 🚫 <b>លុបមេរោគបោកប្រាស់</b> (<code>.apk, .exe, .bat</code>)\n• 🌊 <b>ទប់ស្កាត់សារ Flood / Spam & Phishing Link</b>\n\n👉 <b>សូមចូលទៅកាន់ Group Settings ➡️ Administrators ➡️ បន្ថែម Bot ជា Admin ដោយបើកសិទ្ធិ៖</b>\n✅ <b>1. Delete Messages (លុបសារមេរោគ)</b>\n✅ <b>2. Ban / Restrict Users (រារាំងគណនីបន្លំ)</b>\n\n💡 <i>ប្រសិនបើមិនទាន់ Promote ជា Admin ទេ Bot នឹងមិនមានសិទ្ធិលុបសារគ្រោះថ្នាក់បានឡើយ!</i>\n━━━━━━━━━━━━━━━━━━━━`;
+      
+      try {
+        // Send to group
+        fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: id,
+            text: remindText,
+            parse_mode: "HTML"
+          })
+        }).catch(() => {});
+
+        // Send to admin private DM if id is available
+        if (group.added_by_id && String(group.added_by_id).match(/^\d+$/)) {
+          fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: group.added_by_id,
+              text: remindText,
+              parse_mode: "HTML"
+            })
+          }).catch(() => {});
+        }
+      } catch (err) {
+        console.warn("remind_promote API call error:", err);
+      }
+    }
   } else if (action === "toggle_enable") {
     // If admin is turning ON an unactivated group, grant 7-day free trial automatically!
     if (!group.is_enabled && (!group.is_authorized || group.expiry_date === "Not Yet Activated")) {

@@ -550,6 +550,32 @@ export const GroupManager: React.FC<GroupManagerProps> = ({
                     <span>🔴 ដកសិទ្ធិ (Revoke)</span>
                   </button>
 
+                  {/* Remind Admin to Promote */}
+                  <button
+                    disabled={isLoading}
+                    onClick={() => onGroupAction(activeGroupId, "remind_promote")}
+                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 p-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    title="ផ្ញើសារដាស់តឿនទៅ Group & Admin ឱ្យ Promote Bot ជា Admin"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>📢 រំលឹក Promote Admin</span>
+                  </button>
+
+                  {/* Leave Group */}
+                  <button
+                    disabled={isLoading}
+                    onClick={() => {
+                      if (window.confirm(`តើអ្នកពិតជាចង់បញ្ជាឱ្យ Bot ចាកចេញពីក្រុម "${selectedGroup.title}" មែនទេ?`)) {
+                        onGroupAction(activeGroupId, "leave_group");
+                      }
+                    }}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 p-2.5 rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    title="បញ្ជាឱ្យ Bot ចាកចេញពី Group នេះ"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-slate-600" />
+                    <span>🚪 ចាកចេញពីក្រុម (Leave)</span>
+                  </button>
+
                   {/* Delete Single Group */}
                   <button
                     disabled={isLoading}
