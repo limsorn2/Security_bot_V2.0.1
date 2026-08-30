@@ -16,6 +16,7 @@ from telegram import (
     BotCommandScopeAllPrivateChats,
     BotCommandScopeAllGroupChats,
     BotCommandScopeAllChatAdministrators,
+    BotCommandScopeChat,
     MenuButtonCommands,
     ChatMemberUpdated
 )
@@ -460,7 +461,7 @@ async def expiry_checker_loop(application):
             logger.warning(f"Error in expiry checker loop: {e}")
         await asyncio.sleep(3600) # Check every 1 hour
 
-# ----------------- BOT COMMANDS (ALL USERS & GROUP ADMINS) -----------------
+# ----------------- BOT COMMANDS (PUBLIC: /status ONLY, ADMIN: FULL ACCESS) -----------------
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bot_info = await context.bot.get_me()
     bot_username = bot_info.username or ""
@@ -477,54 +478,78 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             added_by_id=str(user.id) if user else ""
         )
 
+    # Restrict /start control to Master Admin only
+    if not user or not is_admin(user.id):
+        restrict_msg = (
+            "ℹ️ <b>សមាជិកទូទៅអាចប្រើបានតែពាក្យបញ្ជា <code>/status</code> ប៉ុណ្ណោះ។</b>\n\n"
+            f"🛡️ មានតែ <b>Master Super Admin</b> <code>(ID: {ADMIN_ID})</code> ម្នាក់គត់ដែលមានសិទ្ធិបញ្ជា និងគ្រប់គ្រង Bot នេះ។\n\n"
+            "👉 សូមវាយ <code>/status</code> ដើម្បីពិនិត្យស្ថានភាពប្រព័ន្ធសុវត្ថិភាព។"
+        )
+        return await send_clean_bot_response(update, context, restrict_msg, delete_seconds=BOT_MSG_DELETE_SECONDS)
+
     welcome_text = (
-        "🛡️ <b>សូមស្វាគមន៍មកកាន់ Security_bot_V2.0.1!</b>\n\n"
+        "👑 <b>សូមស្វាគមន៍ Master Admin មកកាន់ Security_bot_V2.0.1!</b>\n\n"
         "ប្រព័ន្ធការពារ និងគ្រប់គ្រងសន្តិសុខគ្រុប Telegram ស្វ័យប្រវត្តិកំពុងដំណើរការ 24/7។\n\n"
-        "✨ <b>មុខងារការពារសកម្ម & Auto-Sync៖</b>\n"
-        "• 🚫 Anti-Malware / Dangerous Files (.apk, .exe, .bat, ...)\n"
-        "• ⚡ Anti-Flood / Anti-Spam Auto Warning\n"
-        "• 🆔 ពិនិត្យ Group ID & User ID ភ្លាមៗ\n"
-        "• 🔄 Auto-Sync ជាមួយ Web Dashboard Realtime\n"
-        "• ➕ អាច Add Bot ទៅកាន់គ្រុបណាបានស្រេចចិត្ត!\n\n"
-        "⏱️ <i>សារនេះនឹងរលាយបាត់ក្នុង ១៥ វិនាទី ឬនៅពេលមានពាក្យបញ្ជាថ្មី។</i>\n\n"
-        "👇 <b>សូមចុចប៊ូតុងបញ្ជាខាងក្រោម ដើម្បីប្រើប្រាស់មុខងារ៖</b>"
+        "✨ <b>មុខងារគ្រប់គ្រង Master Admin៖</b>\n"
+        "• 📋 គ្រប់គ្រងបញ្ជីក្រុម និងអតិថិជន (/groups ឬ /admin)\n"
+        "• ⏳ កំណត់សិទ្ធិ និងបន្ថែមថ្ងៃប្រើប្រាស់ (/adddays ឬ /approve)\n"
+        "• 🚪 បញ្ជាឱ្យ Bot ចាកចេញពីក្រុម (/leave <group_id>)\n"
+        "• 📢 ផ្ញើសារដាស់តឿន Promote Bot ជា Admin (/remindadmin <group_id>)\n"
+        "• 💾 ទាញយក Backup ទិន្នន័យ (/backup)\n\n"
+        "👇 <b>សូមជ្រើសរើសម៉ឺនុយបញ្ជាខាងក្រោម៖</b>"
     )
     await send_clean_bot_response(
         update=update,
         context=context,
         text=welcome_text,
         reply_markup=get_main_menu_keyboard(bot_username),
-        delete_seconds=BOT_MSG_DELETE_SECONDS
+        delete_seconds=120
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if not user or not is_admin(user.id):
+        restrict_msg = (
+            "ℹ️ <b>សមាជិកទូទៅអាចប្រើបានតែពាក្យបញ្ជា <code>/status</code> ប៉ុណ្ណោះ។</b>\n\n"
+            f"🛡️ មានតែ <b>Master Super Admin</b> <code>(ID: {ADMIN_ID})</code> ម្នាក់គត់ដែលមានសិទ្ធិបញ្ជា និងគ្រប់គ្រង Bot នេះ។"
+        )
+        return await send_clean_bot_response(update, context, restrict_msg, delete_seconds=BOT_MSG_DELETE_SECONDS)
+
     bot_info = await context.bot.get_me()
     bot_username = bot_info.username or ""
 
     help_text = (
-        "📖 <b>សៀវភៅជំនួយ & ពាក្យបញ្ជា Security_bot_V2.0.1:</b>\n"
+        "📖 <b>សៀវភៅជំនួយ & ពាក្យបញ្ជា Master Admin Security_bot_V2.0.1:</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "🔹 <code>/start</code> - បើកផ្ទាំងបញ្ជា & ប៊ូតុងចុចអន្តរកម្ម\n"
-        "🔹 <code>/id</code> ឬ <code>/groupid</code> - ឆែក Group ID & User ID ភ្លាមៗ\n"
+        "🔹 <code>/admin</code> - បើកផ្ទាំងបញ្ជា Master Admin Panel\n"
+        "🔹 <code>/groups</code> - បញ្ជីគ្រប់គ្រងក្រុម & Profile អតិថិជន\n"
         "🔹 <code>/status</code> - ពិនិត្យមើលស្ថានភាពប្រព័ន្ធសុវត្ថិភាព\n"
-        "🔹 <code>/license</code> - ពិនិត្យសុពលភាព & កាលបរិច្ឆេទផុតកំណត់\n"
-        "🔹 <code>/rules</code> - មើលគោលការណ៍សន្តិសុខគ្រុប\n"
-        "🔹 <code>/addgroup</code> - ទទួល Link បន្ថែម Bot ទៅកាន់ Group ផ្សេងទៀត\n"
-        "🔹 <code>/mygroups</code> - មើលបញ្ជីក្រុមដែលបាន Add\n"
-        "🔹 <code>/help</code> - បង្ហាញជំនួយនេះ\n"
+        "🔹 <code>/adddays &lt;id&gt; &lt;days&gt;</code> - បន្ថែមថ្ងៃប្រើប្រាស់\n"
+        "🔹 <code>/approve &lt;id&gt;</code> - អនុញ្ញាត Free Trial 7 ថ្ងៃ\n"
+        "🔹 <code>/leave &lt;id&gt;</code> - បញ្ជាឱ្យ Bot ចាកចេញពីក្រុម\n"
+        "🔹 <code>/remindadmin &lt;id&gt;</code> - ផ្ញើសារដាស់តឿន Promote Admin\n"
+        "🔹 <code>/backup</code> - ទាញយក Backup ទិន្នន័យ .json\n"
+        "🔹 <code>/id</code> - ឆែក Group ID & User ID ភ្លាមៗ\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "⏱️ <i>សារនេះនឹងរលាយបាត់ក្នុង ១៥ វិនាទី ឬនៅពេលមានពាក្យបញ្ជាថ្មី។</i>\n\n"
-        "👇 <i>លោកអ្នកក៏អាចចុចលើប៊ូតុងរហ័សខាងក្រោមបានផងដែរ៖</i>"
+        "⏱️ <i>សារនេះនឹងរលាយបាត់ក្នុង 120 វិនាទី។</i>"
     )
     await send_clean_bot_response(
         update=update,
         context=context,
         text=help_text,
         reply_markup=get_back_keyboard(bot_username),
-        delete_seconds=BOT_MSG_DELETE_SECONDS
+        delete_seconds=120
     )
 
 async def rules_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if not user or not is_admin(user.id):
+        restrict_msg = (
+            "ℹ️ <b>សមាជិកទូទៅអាចប្រើបានតែពាក្យបញ្ជា <code>/status</code> ប៉ុណ្ណោះ។</b>\n\n"
+            f"🛡️ មានតែ <b>Master Super Admin</b> <code>(ID: {ADMIN_ID})</code> ម្នាក់គត់ដែលមានសិទ្ធិបញ្ជា Bot នេះ។"
+        )
+        return await send_clean_bot_response(update, context, restrict_msg, delete_seconds=BOT_MSG_DELETE_SECONDS)
+
     bot_info = await context.bot.get_me()
     bot_username = bot_info.username or ""
 
@@ -555,22 +580,22 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     groups = read_json(GROUPS_FILE, {})
     g = groups.get(cid_str, {})
     is_auth = g.get("is_authorized", False) and g.get("is_enabled", False)
-    plan_type = g.get("plan_type", "Pending Approval")
+    plan_type = g.get("plan_type", "🎁 Free Trial 7 Days (សាកល្បង ៧ ថ្ងៃ)")
     exp_date = g.get("expiry_date", "Not Activated")
 
     status_text = (
         "📊 <b>ស្ថានភាពប្រព័ន្ធសន្តិសុខ (System Status)</b>\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "🛡️ <b>Bot Engine:</b> Security_bot_V2.0.1 (Online ✅)\n"
-        f"🔰 <b>ស្ថានភាពការពារ:</b> {'🟢 កំពុងការពារយ៉ាងសកម្ម (SHIELD ON)' if is_auth else '🟡 រង់ចាំបើកសិទ្ធិ (Pending)'}\n"
+        f"🔰 <b>ស្ថានភាពការពារ:</b> {'🟢 កំពុងការពារយ៉ាងសកម្ម (SHIELD ACTIVE)' if is_auth else '🟡 រង់ចាំបើកសិទ្ធិ (Pending)'}\n"
         f"🛒 <b>កញ្ចប់សេវា:</b> {plan_type}\n"
         f"⏳ <b>កាលបរិច្ឆេទផុត:</b> <code>{exp_date}</code>\n"
         "🚫 <b>Anti-Malware:</b> Active (.apk, .exe, .bat, .js...)\n"
         "⚡ <b>Anti-Flood:</b> Active (Limit 5 msgs / 4s)\n"
         "🔄 <b>2-Way CRM Sync:</b> Online Realtime\n"
-        f"👑 <b>Super Admin:</b> ID <code>{ADMIN_ID}</code>\n"
+        f"👑 <b>Master Admin:</b> @sornsecurityrobot (ID <code>{ADMIN_ID}</code>)\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "⏱️ <i>សារនេះនឹងរលាយបាត់ក្នុង ១៥ វិនាទី ឬនៅពេលមានពាក្យបញ្ជាថ្មី។</i>"
+        "⏱️ <i>សារនេះនឹងរលាយបាត់ក្នុង ១៥ វិនាទី ដើម្បីរក្សាភាពស្អាតក្នុង Group។</i>"
     )
     await send_clean_bot_response(
         update=update,
@@ -581,6 +606,14 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def license_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if not user or not is_admin(user.id):
+        restrict_msg = (
+            "ℹ️ <b>សមាជិកទូទៅអាចប្រើបានតែពាក្យបញ្ជា <code>/status</code> ប៉ុណ្ណោះ។</b>\n\n"
+            f"🛡️ មានតែ <b>Master Super Admin</b> <code>(ID: {ADMIN_ID})</code> ម្នាក់គត់ដែលមានសិទ្ធិបញ្ជា Bot នេះ។"
+        )
+        return await send_clean_bot_response(update, context, restrict_msg, delete_seconds=BOT_MSG_DELETE_SECONDS)
+
     bot_info = await context.bot.get_me()
     bot_username = bot_info.username or ""
     chat = update.effective_chat
@@ -627,6 +660,14 @@ async def license_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def addgroup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if not user or not is_admin(user.id):
+        restrict_msg = (
+            "ℹ️ <b>សមាជិកទូទៅអាចប្រើបានតែពាក្យបញ្ជា <code>/status</code> ប៉ុណ្ណោះ។</b>\n\n"
+            f"🛡️ មានតែ <b>Master Super Admin</b> <code>(ID: {ADMIN_ID})</code> ម្នាក់គត់ដែលមានសិទ្ធិបញ្ជា Bot នេះ។"
+        )
+        return await send_clean_bot_response(update, context, restrict_msg, delete_seconds=BOT_MSG_DELETE_SECONDS)
+
     bot_info = await context.bot.get_me()
     bot_username = bot_info.username or "sornsecurityrobot"
     bot_link = f"https://t.me/{bot_username}?startgroup=true"
@@ -648,8 +689,15 @@ async def addgroup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_clean_bot_response(update, context, text, reply_markup=btn, delete_seconds=BOT_MSG_DELETE_SECONDS)
 
 async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat = update.effective_chat
     user = update.effective_user
+    if not user or not is_admin(user.id):
+        restrict_msg = (
+            "ℹ️ <b>សមាជិកទូទៅអាចប្រើបានតែពាក្យបញ្ជា <code>/status</code> ប៉ុណ្ណោះ។</b>\n\n"
+            f"🛡️ មានតែ <b>Master Super Admin</b> <code>(ID: {ADMIN_ID})</code> ម្នាក់គត់ដែលមានសិទ្ធិបញ្ជា Bot នេះ។"
+        )
+        return await send_clean_bot_response(update, context, restrict_msg, delete_seconds=BOT_MSG_DELETE_SECONDS)
+
+    chat = update.effective_chat
     bot_info = await context.bot.get_me()
     bot_username = bot_info.username or ""
 
@@ -1054,6 +1102,15 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
         if last_bot_messages.get(chat_id) == query.message.message_id:
             last_bot_messages.pop(chat_id, None)
         return
+
+    # Non-admin members can only check status or close
+    if not user or not is_admin(user.id):
+        if data != "btn_status":
+            try:
+                await query.answer("⛔ មានតែ Master Super Admin (ID: 240224709) ម្នាក់គត់ដែលមានសិទ្ធិបញ្ជា Bot!", show_alert=True)
+            except Exception:
+                pass
+            return
 
     if data == "btn_main_menu" or data == "btn_refresh":
         welcome_text = (
@@ -1603,39 +1660,42 @@ async def message_inspector(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ----------------- TELEGRAM BOT COMMANDS REGISTRATION (POST_INIT) -----------------
 async def post_init_setup(application):
-    """កំណត់ Bot Command Menu & Menu Button ក្នុង Telegram App គ្រប់បែបយ៉ាង (Private & Groups)"""
+    """កំណត់ Bot Command Menu & Menu Button ក្នុង Telegram App គ្រប់បែបយ៉ាង (Public: /status Only, Master Admin: All)"""
     try:
-        # User & Group Menu Commands
+        # User & Group Menu Commands - ONLY /status is visible for members & others
         public_commands = [
-            BotCommand("start", "🚀 ចាប់ផ្ដើម & បើកម៉ឺនុយមេ"),
-            BotCommand("status", "📊 ពិនិត្យស្ថានភាពប្រព័ន្ធ & ការពារ"),
-            BotCommand("license", "🔐 ពិនិត្យកញ្ចប់សេវា & សុពលភាព"),
-            BotCommand("id", "🆔 ឆែក Group ID & User ID"),
-            BotCommand("rules", "🛡️ គោលការណ៍សន្តិសុខគ្រុប"),
-            BotCommand("addgroup", "➕ Link Add Bot ទៅ Group ផ្សេងទៀត"),
-            BotCommand("help", "📖 សៀវភៅជំនួយ & របៀបប្រើ"),
+            BotCommand("status", "📊 ពិនិត្យស្ថានភាពប្រព័ន្ធសុវត្ថិភាព"),
         ]
 
-        # 1. Default scope (All chats)
+        # 1. Default scope (All chats / regular members)
         await application.bot.set_my_commands(public_commands, scope=BotCommandScopeDefault())
         
-        # 2. Private Chats scope
+        # 2. Private Chats scope (regular users)
         await application.bot.set_my_commands(public_commands, scope=BotCommandScopeAllPrivateChats())
         
-        # 3. All Group Chats scope
+        # 3. All Group Chats scope (all group members)
         await application.bot.set_my_commands(public_commands, scope=BotCommandScopeAllGroupChats())
         
-        # 4. Group Administrators scope
-        admin_commands = public_commands + [
+        # 4. Master Admin commands (Exclusive for Master Admin chat & Admins)
+        admin_commands = [
+            BotCommand("status", "📊 ពិនិត្យស្ថានភាពប្រព័ន្ធ & ការពារ"),
             BotCommand("admin", "👑 ផ្ទាំងបញ្ជា Master Admin Panel"),
-            BotCommand("groups", "📋 បញ្ជីគ្រប់គ្រងក្រុម"),
+            BotCommand("groups", "📋 បញ្ជីគ្រប់គ្រងក្រុម & អតិថិជន"),
+            BotCommand("adddays", "➕ បន្ថែមថ្ងៃប្រើប្រាស់ (/adddays <id> <days>)"),
+            BotCommand("approve", "🎁 អនុញ្ញាត Free Trial 7 ថ្ងៃ (/approve <id>)"),
+            BotCommand("remindadmin", "📢 ក្រើនរំលឹក Promote Bot ជា Admin"),
             BotCommand("leave", "🚪 បញ្ជាឱ្យ Bot ចាកចេញពីក្រុម (/leave <id>)"),
-            BotCommand("remindadmin", "📢 ផ្ញើសារដាស់តឿន Promote Bot ជា Admin"),
-            BotCommand("backup", "💾 ទាញយក Backup (.json)"),
+            BotCommand("backup", "💾 ទាញយក Backup ទិន្នន័យ (.json)"),
+            BotCommand("rules", "🛡️ គោលការណ៍សុវត្ថិភាព"),
+            BotCommand("id", "🆔 ឆែក Chat ID & User ID"),
         ]
+        try:
+            await application.bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(chat_id=ADMIN_ID))
+        except Exception as e:
+            logger.debug(f"ScopeChat note: {e}")
         await application.bot.set_my_commands(admin_commands, scope=BotCommandScopeAllChatAdministrators())
 
-        logger.info("✅ បានដំឡើង Telegram Bot Commands Menu គ្រប់ Scopes ដោយជោគជ័យ!")
+        logger.info("✅ បានដំឡើង Telegram Bot Commands Menu (Public: /status តែមួយគត់, Master Admin: ពេញសិទ្ធិ)!")
         try:
             await application.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
         except Exception as err:
