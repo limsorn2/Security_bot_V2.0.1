@@ -40,22 +40,51 @@ MONGODB_URI="mongodb+srv://<username>:<password>@cluster0.mongodb.net/?retryWrit
 MONGODB_DB_NAME="sorn_security_bot"
 `;
 
-  const setupCommands = `# ១. ដំឡើង Python Libraries (រួមទាំង Webhooks & Cloud DB)
-pip install "python-telegram-bot[webhooks]>=20.0" pymongo psycopg2-binary requests aiohttp tornado
+  const setupCommands = `# ========================================================
+# 🚀 របៀប RUN កម្មវិធី និង BOT (HOW TO RUN THE APP & BOT)
+# ========================================================
 
-# ឬដំឡើងតាម requirements.txt:
-pip install -r requirements.txt
+# --------------------------------------------------------
+# 🖥️ ជម្រើសទី ១៖ RUN លើកុំព្យូទ័រផ្ទាល់ (Local Machine)
+# --------------------------------------------------------
 
-# ២. កំណត់ Configuration
-cp .env.example .env
+# 1. សម្រាប់ Windows (ចុច 1-Click):
+# គ្រាន់តែ Double-Click លើ file: run_bot_windows.bat
+# ឬវាយក្នុង Command Prompt (CMD):
+run_bot_windows.bat
 
-# ៣. ដំណើរការ Bot
-python bot.py
+# 2. សម្រាប់ Mac / Linux:
+chmod +x start_bot.sh
+./start_bot.sh
 
-# ៤. ពាក្យបញ្ជា Cloud Database លើ Telegram:
-# /dbstatus   - ឆែកមើលស្ថានភាព Cloud Database
-# /synccloud  - Force Sync ទិន្នន័យ
-# /backup     - ទាញយក Backup File .json ភ្លាមៗ
+# 3. ដំណើរការផ្ទាំងគ្រប់គ្រង Web Dashboard (React + Express):
+npm install
+npm run dev
+
+# --------------------------------------------------------
+# ☁️ ជម្រើសទី ២៖ RUN លើ RENDER.COM (Cloud 24/7 Free)
+# --------------------------------------------------------
+# 1. បង្កើត Web Service លើ Render.com ដោយភ្ជាប់ជាមួយ GitHub
+# 2. កំណត់ Settings:
+#    - Environment: Python 3
+#    - Build Command: pip install -r requirements.txt
+#    - Start Command: python bot.py
+# 3. ក្នុងផ្ទាំង Environment Variables ដាក់:
+#    - TELEGRAM_BOT_TOKEN = "your_bot_token"
+#    - SUPER_ADMIN_ID = "240224709"
+#    - MONGODB_URI = "your_mongodb_cluster_url" (ជម្រើសល្អបំផុតសម្រាប់រក្សាទិន្នន័យ)
+
+# --------------------------------------------------------
+# 📱 ពាក្យបញ្ជាបញ្ជាការលើ TELEGRAM BOT (Commands):
+# --------------------------------------------------------
+# /admin      - បើកផ្ទាំងបញ្ជា Master Admin Panel
+# /groups     - បញ្ជីគ្រប់គ្រងក្រុម និងអតិថិជនទាំងអស់
+# /delgroup   - លុបក្រុមចេញពីបញ្ជី (/delgroup <id>)
+# /restore    - ស្ដារ និងទាញយកទិន្នន័យពី Cloud/Backup
+# /adddays    - បន្ថែមថ្ងៃប្រើប្រាស់ (/adddays <id> <days>)
+# /approve    - អនុញ្ញាត Free Trial 7 ថ្ងៃ (/approve <id>)
+# /broadcast  - ផ្ញើសារផ្សាយពាណិជ្ជកម្មទៅកាន់ Channel
+# /dbstatus   - ឆែកស្ថានភាព Cloud MongoDB
 `;
 
   return (
