@@ -931,6 +931,18 @@ export const MobileAppPortal: React.FC<MobileAppPortalProps> = ({
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                 </button>
                 <button
+                  onClick={() => {
+                    onNavigateToTab("groups");
+                  }}
+                  className="w-full p-2.5 flex items-center justify-between text-slate-700 hover:bg-emerald-50 rounded-lg"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <RefreshCw className="w-4 h-4 text-emerald-600" />
+                    <span className="font-bold text-emerald-800">♻️ Restore & ហៅក្រុមពី Telegram/Cloud</span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">Auto-Sync</span>
+                </button>
+                <button
                   onClick={() => onNavigateToTab("code")}
                   className="w-full p-2.5 flex items-center justify-between text-slate-700 hover:bg-slate-50 rounded-lg"
                 >

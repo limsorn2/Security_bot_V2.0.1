@@ -1,1 +1,206 @@
-{}
+{
+  "-1004363472088": {
+    "client_group_id": -1004363472088,
+    "client_group_name": "សាកRobot V1",
+    "registered_date": "2026-08-30 06:06:27",
+    "activated_date": "2026-08-30 06:06:27",
+    "expiry_date": "Lifetime",
+    "plan_type": "👑 Lifetime VIP (ពេញមួយជីវិត)",
+    "is_lifetime": true,
+    "license_status": "🟢 ACTIVE (បានទិញសិទ្ធិ)",
+    "customer_contact": {
+      "name": "លីម សន 🇰🇭 ( LIM SORN )",
+      "user_id": "240224709",
+      "username": "@limsorn"
+    },
+    "purchase_history": [
+      {
+        "package": "Plan 7 Days (កញ្ចប់ 7 ថ្ងៃ)",
+        "purchased_date": "2026-08-30 06:06:27",
+        "duration": "7 Days",
+        "status": "Active"
+      },
+      {
+        "package": "👑 Lifetime VIP",
+        "purchased_date": "2026-08-30 06:55:25",
+        "duration": "Lifetime",
+        "status": "Active"
+      }
+    ],
+    "security_stats": {
+      "threats_blocked": 0,
+      "spams_blocked": 0,
+      "last_incident": "None"
+    }
+  },
+  "-1001234960636": {
+    "client_group_id": -1001234960636,
+    "client_group_name": "គ្រូបង្រៀនជំនាន់ថ្មី",
+    "registered_date": "2026-08-30 06:12:46",
+    "activated_date": "2026-08-30 06:12:46",
+    "expiry_date": "Lifetime",
+    "plan_type": "👑 Lifetime VIP (ពេញមួយជីវិត)",
+    "is_lifetime": true,
+    "license_status": "🟢 ACTIVE (បានទិញសិទ្ធិ)",
+    "customer_contact": {
+      "name": "លីម សន 🇰🇭 ( LIM SORN )",
+      "user_id": "240224709",
+      "username": "@limsorn"
+    },
+    "purchase_history": [
+      {
+        "package": "Plan 7 Days (កញ្ចប់ 7 ថ្ងៃ)",
+        "purchased_date": "2026-08-30 06:12:46",
+        "duration": "7 Days",
+        "status": "Active"
+      },
+      {
+        "package": "👑 Lifetime VIP",
+        "purchased_date": "2026-08-30 06:13:20",
+        "duration": "Lifetime",
+        "status": "Active"
+      }
+    ],
+    "security_stats": {
+      "threats_blocked": 0,
+      "spams_blocked": 0,
+      "last_incident": "None"
+    }
+  },
+  "-1004438418679": {
+    "client_group_id": -1004438418679,
+    "client_group_name": "អនុវិស័យមត្ដេយ្យ បឋមសិក្សា ស្រុកភ្នំព្រឹកការ",
+    "registered_date": "2026-08-30 06:20:50",
+    "activated_date": "2026-08-30 06:20:50",
+    "expiry_date": "Lifetime",
+    "plan_type": "👑 Lifetime VIP (ពេញមួយជីវិត)",
+    "is_lifetime": true,
+    "license_status": "🟢 ACTIVE (បានទិញសិទ្ធិ)",
+    "customer_contact": {
+      "name": "លីម សន 🇰🇭 ( LIM SORN )",
+      "user_id": "240224709",
+      "username": "@limsorn"
+    },
+    "purchase_history": [
+      {
+        "package": "Plan 7 Days (កញ្ចប់ 7 ថ្ងៃ)",
+        "purchased_date": "2026-08-30 06:20:50",
+        "duration": "7 Days",
+        "status": "Active"
+      },
+      {
+        "package": "👑 Lifetime VIP",
+        "purchased_date": "2026-08-30 06:21:11",
+        "duration": "Lifetime",
+        "status": "Active"
+      }
+    ],
+    "security_stats": {
+      "threats_blocked": 0,
+      "spams_blocked": 0,
+      "last_incident": "None"
+    }
+  },
+  "-1002269705211": {
+    "client_group_id": -1002269705211,
+    "client_group_name": "GEIP(SCS76-AF72) បាត់ដំបង",
+    "registered_date": "2026-08-30 06:26:44",
+    "activated_date": "2026-08-30 06:26:44",
+    "expiry_date": "Lifetime",
+    "plan_type": "👑 Lifetime VIP (ពេញមួយជីវិត)",
+    "is_lifetime": true,
+    "license_status": "🟢 ACTIVE (បានទិញសិទ្ធិ)",
+    "customer_contact": {
+      "name": "Group Admin",
+      "user_id": "N/A",
+      "username": "N/A"
+    },
+    "purchase_history": [
+      {
+        "package": "Plan 7 Days (កញ្ចប់ 7 ថ្ងៃ)",
+        "purchased_date": "2026-08-30 06:26:44",
+        "duration": "7 Days",
+        "status": "Active"
+      },
+      {
+        "package": "👑 Lifetime VIP",
+        "purchased_date": "2026-08-30 06:28:11",
+        "duration": "Lifetime",
+        "status": "Active"
+      }
+    ],
+    "security_stats": {
+      "threats_blocked": 0,
+      "spams_blocked": 0,
+      "last_incident": "None"
+    }
+  },
+  "-1001778284832": {
+    "client_group_id": -1001778284832,
+    "client_group_name": "ផ្នែកបឋមសិក្សា",
+    "registered_date": "2026-08-30 06:29:56",
+    "activated_date": "2026-08-30 06:29:56",
+    "expiry_date": "Lifetime",
+    "plan_type": "👑 Lifetime VIP (ពេញមួយជីវិត)",
+    "is_lifetime": true,
+    "license_status": "🟢 ACTIVE (បានទិញសិទ្ធិ)",
+    "customer_contact": {
+      "name": "Group Admin",
+      "user_id": "N/A",
+      "username": "N/A"
+    },
+    "purchase_history": [
+      {
+        "package": "Plan 7 Days (កញ្ចប់ 7 ថ្ងៃ)",
+        "purchased_date": "2026-08-30 06:29:56",
+        "duration": "7 Days",
+        "status": "Active"
+      },
+      {
+        "package": "👑 Lifetime VIP",
+        "purchased_date": "2026-08-30 06:30:31",
+        "duration": "Lifetime",
+        "status": "Active"
+      }
+    ],
+    "security_stats": {
+      "threats_blocked": 0,
+      "spams_blocked": 0,
+      "last_incident": "None"
+    }
+  },
+  "-1004347724043": {
+    "client_group_id": -1004347724043,
+    "client_group_name": "ក្រុមកំចាត់មេរោគឌីជីថល",
+    "registered_date": "2026-08-30 10:01:29",
+    "activated_date": "2026-08-30 10:01:29",
+    "expiry_date": "Lifetime",
+    "plan_type": "👑 Lifetime VIP (ពេញមួយជីវិត)",
+    "is_lifetime": true,
+    "license_status": "🟢 ACTIVE (បានទិញសិទ្ធិ)",
+    "customer_contact": {
+      "name": "លីម សន 🇰🇭 ( LIM SORN )",
+      "user_id": "240224709",
+      "username": "@limsorn"
+    },
+    "purchase_history": [
+      {
+        "package": "Plan 7 Days (កញ្ចប់ 7 ថ្ងៃ)",
+        "purchased_date": "2026-08-30 10:01:29",
+        "duration": "7 Days",
+        "status": "Active"
+      },
+      {
+        "package": "👑 Lifetime VIP",
+        "purchased_date": "2026-08-30 10:02:21",
+        "duration": "Lifetime",
+        "status": "Active"
+      }
+    ],
+    "security_stats": {
+      "threats_blocked": 0,
+      "spams_blocked": 0,
+      "last_incident": "None"
+    }
+  }
+}

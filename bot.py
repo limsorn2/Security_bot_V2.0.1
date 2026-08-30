@@ -270,6 +270,23 @@ def read_json(file_path: str, default=None):
 
 def write_json(file_path: str, data):
     try:
+        # Create automatic local timestamped snapshot / backup before overwrite
+        if os.path.exists(file_path) and os.path.getsize(file_path) > 10:
+            try:
+                base_dir = os.path.dirname(file_path) or "."
+                backup_dir = os.path.join(base_dir, "backups")
+                os.makedirs(backup_dir, exist_ok=True)
+                
+                # Create rolling snapshot
+                fname = os.path.basename(file_path)
+                bak_file = os.path.join(backup_dir, f"{fname}.bak")
+                with open(file_path, "r", encoding="utf-8") as rf:
+                    content = rf.read()
+                with open(bak_file, "w", encoding="utf-8") as wf:
+                    wf.write(content)
+            except Exception as be:
+                logger.debug(f"Snapshot backup note: {be}")
+
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         # រក្សាទុកឡើង Cloud Database ដោយស្វ័យប្រវត្តិ
@@ -1425,6 +1442,96 @@ async def delete_group_command(update: Update, context: ContextTypes.DEFAULT_TYP
         delete_seconds=25
     )
 
+async def restore_database_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """មុខងារ Restore ទិន្នន័យពី Cloud (MongoDB Atlas / PostgreSQL) ឬ Local Backup Snapshot"""
+    user = update.effective_user
+    if not user or not is_admin(user.id):
+        return
+
+    await send_clean_bot_response(update, context, "⏳ <b>កំពុងត្រួតពិនិត្យ និងទាញយកទិន្នន័យ (Restore Cloud & Local Backups)...</b>", delete_seconds=8)
+
+    restored_groups = 0
+    restored_clients = 0
+    source = "Local Backup"
+
+    try:
+        # 1. First priority: Pull directly from Cloud Database
+        if mongo_db is not None:
+            col_groups = mongo_db["groups_config"]
+            remote_groups = {}
+            for doc in col_groups.find({}):
+                gid = doc.get("_id") or doc.get("id")
+                if gid:
+                    doc_copy = {k: v for k, v in doc.items() if k != "_id"}
+                    remote_groups[str(gid)] = doc_copy
+            
+            if remote_groups:
+                write_json(GROUPS_FILE, remote_groups)
+                restored_groups = len(remote_groups)
+                source = "MongoDB Atlas Cloud"
+
+            col_clients = mongo_db["clients_database"]
+            remote_clients = {}
+            for doc in col_clients.find({}):
+                cid = doc.get("_id") or doc.get("user_id")
+                if cid:
+                    doc_copy = {k: v for k, v in doc.items() if k != "_id"}
+                    remote_clients[str(cid)] = doc_copy
+
+            if remote_clients:
+                write_json(CLIENTS_FILE, remote_clients)
+                restored_clients = len(remote_clients)
+                source = "MongoDB Atlas Cloud"
+
+        elif postgres_conn is not None:
+            with postgres_conn.cursor() as cur:
+                cur.execute("SELECT key_name, data_json FROM bot_storage;")
+                rows = cur.fetchall()
+                data_map = {r[0]: r[1] for r in rows}
+                if "groups_config" in data_map:
+                    g_data = json.loads(data_map["groups_config"])
+                    write_json(GROUPS_FILE, g_data)
+                    restored_groups = len(g_data)
+                    source = "PostgreSQL Cloud"
+                if "clients_database" in data_map:
+                    c_data = json.loads(data_map["clients_database"])
+                    write_json(CLIENTS_FILE, c_data)
+                    restored_clients = len(c_data)
+                    source = "PostgreSQL Cloud"
+
+        # 2. Fallback to local snapshot backup if cloud was empty
+        if restored_groups == 0:
+            bak_file = os.path.join(DATA_DIR, "backups", "groups.json.bak")
+            if os.path.exists(bak_file):
+                bak_data = read_json(bak_file, {})
+                if bak_data:
+                    write_json(GROUPS_FILE, bak_data)
+                    restored_groups = len(bak_data)
+                    source = "Local Snapshot Backup"
+
+        if restored_clients == 0:
+            bak_cfile = os.path.join(DATA_DIR, "backups", "clients.json.bak")
+            if os.path.exists(bak_cfile):
+                bak_cdata = read_json(bak_cfile, {})
+                if bak_cdata:
+                    write_json(CLIENTS_FILE, bak_cdata)
+                    restored_clients = len(bak_cdata)
+
+        # 3. Trigger auto scan of existing chats if bot is already in groups
+        current_groups = read_json(GROUPS_FILE, {})
+        msg = (
+            f"✅ <b>ទាញយក និង Restore ទិន្នន័យដោយជោគជ័យ!</b>\n\n"
+            f"🌐 <b>ប្រភពទិន្នន័យ:</b> <code>{source}</code>\n"
+            f"👥 <b>ចំនួនក្រុម (Groups):</b> <code>{len(current_groups)}</code> ក្រុម\n"
+            f"👤 <b>ចំនួនអតិថិជន (Clients):</b> <code>{restored_clients or len(read_json(CLIENTS_FILE, {}))}</code> នាក់\n"
+            f"🕒 <b>ពេលវេលា Sync:</b> <code>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</code>"
+        )
+        await send_clean_bot_response(update, context, msg, delete_seconds=30)
+
+    except Exception as e:
+        logger.error(f"Restore command error: {e}")
+        await send_clean_bot_response(update, context, f"❌ <b>មានបញ្ហាក្នុងការ Restore:</b> <code>{e}</code>", delete_seconds=20)
+
 async def notify_expiry_manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not user or not is_admin(user.id):
@@ -2074,6 +2181,7 @@ async def post_init_setup(application):
             BotCommand("admin", "👑 ផ្ទាំងបញ្ជា Master Admin Panel"),
             BotCommand("groups", "📋 បញ្ជីគ្រប់គ្រងក្រុម & អតិថិជន"),
             BotCommand("delgroup", "🗑️ លុបក្រុមចេញពីបញ្ជី (/delgroup <id>)"),
+            BotCommand("restore", "♻️ Restore ទិន្នន័យពី Cloud & Backup"),
             BotCommand("adddays", "➕ បន្ថែមថ្ងៃប្រើប្រាស់ (/adddays <id> <days>)"),
             BotCommand("approve", "🎁 អនុញ្ញាត Free Trial 7 ថ្ងៃ (/approve <id>)"),
             BotCommand("remindadmin", "📢 ក្រើនរំលឹក Promote Bot ជា Admin"),
@@ -2148,6 +2256,9 @@ def main():
     app.add_handler(CommandHandler("cloud", dbstatus_command))
     app.add_handler(CommandHandler("synccloud", synccloud_command))
     app.add_handler(CommandHandler("notifyexpiry", notify_expiry_manual_command))
+    app.add_handler(CommandHandler("restore", restore_database_command))
+    app.add_handler(CommandHandler("restoredb", restore_database_command))
+    app.add_handler(CommandHandler("recover", restore_database_command))
 
     # Callback Query (Buttons)
     app.add_handler(CallbackQueryHandler(callback_query_handler))
