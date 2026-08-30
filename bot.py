@@ -11,6 +11,8 @@ from telegram import (
     Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    ReplyKeyboardRemove,
+    MenuButtonDefault,
     BotCommand,
     BotCommandScopeDefault,
     BotCommandScopeAllPrivateChats,
@@ -334,10 +336,13 @@ def get_admin_action_keyboard(group_id: str):
         ],
         [
             InlineKeyboardButton("🔴 ដកសិទ្ធិ (Revoke)", callback_data=f"adm_revoke_{group_id}"),
-            InlineKeyboardButton("🔍 ពិនិត្យ Profile & ប្រវត្តិ", callback_data=f"adm_check_{group_id}"),
+            InlineKeyboardButton("🗑️ លុបក្រុមចេញពីបញ្ជី", callback_data=f"adm_del_{group_id}"),
         ],
         [
+            InlineKeyboardButton("🔍 ពិនិត្យ Profile & ប្រវត្តិ", callback_data=f"adm_check_{group_id}"),
             InlineKeyboardButton("🔙 ត្រឡប់ទៅបញ្ជី", callback_data="adm_list_groups"),
+        ],
+        [
             InlineKeyboardButton("❌ បិទសារ", callback_data="btn_close"),
         ]
     ]
@@ -923,6 +928,38 @@ async def id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             added_by_id=user_id
         )
 
+async def clear_keyboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """លុបប៊ូតុងខាងក្រោមកន្លែងសរសេរឆាត (Reply Keyboard) ចេញពីអេក្រង់ទាំងស្រុង"""
+    chat = update.effective_chat
+    if not chat:
+        return
+    try:
+        if update.effective_message:
+            await update.effective_message.delete()
+    except Exception:
+        pass
+
+    try:
+        # Reset chat menu button to standard default
+        await context.bot.set_chat_menu_button(chat_id=chat.id, menu_button=MenuButtonDefault())
+    except Exception:
+        pass
+
+    try:
+        msg = await context.bot.send_message(
+            chat_id=chat.id,
+            text="✅ <b>បានលុបប៊ូតុងខាងក្រោមកន្លែងសរសេរឆាត Telegram ចេញរួចរាល់!</b>",
+            parse_mode="HTML",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        await asyncio.sleep(4)
+        try:
+            await msg.delete()
+        except Exception:
+            pass
+    except Exception as e:
+        logger.debug(f"clear_keyboard note: {e}")
+
 # ----------------- MASTER SUPER ADMIN COMMANDS (ID: 240224709) -----------------
 def is_admin(user_id: int) -> bool:
     return str(user_id) in SUPER_ADMIN_IDS
@@ -1320,6 +1357,74 @@ async def leave_group_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     await send_clean_bot_response(update, context, f"🚪 <b>បានបញ្ជាឱ្យ Bot ចាកចេញពីក្រុម <code>{g_title}</code> (ID: <code>{target_cid}</code>) ដោយជោគជ័យ!</b>", delete_seconds=20)
 
+async def delete_group_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """លុបក្រុមទាំងស្រុងចេញពី Database (Groups & Clients & Cloud DB)"""
+    user = update.effective_user
+    if not user or not is_admin(user.id):
+        return
+
+    chat = update.effective_chat
+    args = context.args
+    target_cid = None
+    if args:
+        target_cid = args[0].strip()
+    elif chat and chat.type in ["group", "supergroup"]:
+        target_cid = str(chat.id)
+
+    if not target_cid:
+        return await send_clean_bot_response(
+            update, 
+            context, 
+            "⚠️ <b>ទម្រង់បញ្ជា៖</b> <code>/delgroup &lt;group_id&gt;</code>\nឧទាហរណ៍៖ <code>/delgroup -1002458931204</code>", 
+            delete_seconds=15
+        )
+
+    groups = read_json(GROUPS_FILE, {})
+    clients = read_json(CLIENTS_FILE, {})
+
+    if target_cid not in groups and target_cid not in clients:
+        return await send_clean_bot_response(
+            update, 
+            context, 
+            f"❌ រកមិនឃើញ Group ID <code>{target_cid}</code> ក្នុងបញ្ជីឡើយ!", 
+            delete_seconds=15
+        )
+
+    g_title = groups.get(target_cid, {}).get("title", f"Group {target_cid}")
+
+    # 1. Remove from local JSON
+    if target_cid in groups:
+        del groups[target_cid]
+        write_json(GROUPS_FILE, groups)
+
+    if target_cid in clients:
+        del clients[target_cid]
+        write_json(CLIENTS_FILE, clients)
+
+    # 2. Sync deletion to Cloud Database if connected
+    global mongo_db, postgres_conn
+    if mongo_db is not None:
+        try:
+            mongo_db.groups.delete_one({"_id": target_cid})
+            mongo_db.clients.delete_one({"_id": target_cid})
+        except Exception as e:
+            logger.debug(f"Cloud Mongo delete err: {e}")
+
+    if postgres_conn is not None:
+        try:
+            with postgres_conn.cursor() as cur:
+                cur.execute("DELETE FROM telegram_groups WHERE id = %s", (target_cid,))
+                cur.execute("DELETE FROM telegram_clients WHERE id = %s", (target_cid,))
+        except Exception as e:
+            logger.debug(f"Cloud Postgres delete err: {e}")
+
+    await send_clean_bot_response(
+        update, 
+        context, 
+        f"🗑️ <b>បានលុបក្រុម <code>{g_title}</code> (ID: <code>{target_cid}</code>) ចេញពី Database និង Cloud រួចរាល់!</b>\n\n📊 ចំនួនក្រុមនៅសល់: <code>{len(groups)}</code> ក្រុម", 
+        delete_seconds=25
+    )
+
 async def notify_expiry_manual_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not user or not is_admin(user.id):
@@ -1664,6 +1769,41 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             except Exception:
                 pass
 
+        elif action_type == "del" and (target_cid in groups or target_cid in clients):
+            g_title = groups.get(target_cid, {}).get("title", f"Group {target_cid}")
+            # 1. Remove local
+            if target_cid in groups:
+                del groups[target_cid]
+                write_json(GROUPS_FILE, groups)
+            if target_cid in clients:
+                del clients[target_cid]
+                write_json(CLIENTS_FILE, clients)
+
+            # 2. Remove cloud
+            global mongo_db, postgres_conn
+            if mongo_db is not None:
+                try:
+                    mongo_db.groups.delete_one({"_id": target_cid})
+                    mongo_db.clients.delete_one({"_id": target_cid})
+                except Exception:
+                    pass
+            if postgres_conn is not None:
+                try:
+                    with postgres_conn.cursor() as cur:
+                        cur.execute("DELETE FROM telegram_groups WHERE id = %s", (target_cid,))
+                        cur.execute("DELETE FROM telegram_clients WHERE id = %s", (target_cid,))
+                except Exception:
+                    pass
+
+            try:
+                await query.edit_message_text(
+                    f"🗑️ <b>បានលុបក្រុម <code>{g_title}</code> (ID: <code>{target_cid}</code>) ចេញពីបញ្ជី Database និង Cloud រួចរាល់!</b>\n\n📊 ក្រុមនៅសល់: <code>{len(groups)}</code> ក្រុម",
+                    parse_mode="HTML",
+                    reply_markup=get_groups_interactive_keyboard()
+                )
+            except Exception:
+                pass
+
 # ----------------- CHAT MEMBER & BOT JOIN HANDLERS -----------------
 async def my_chat_member_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """ចាប់យកពេល Bot ត្រូវបាន Added ឬ Promoted ក្នុង Group Telegram"""
@@ -1933,6 +2073,7 @@ async def post_init_setup(application):
             BotCommand("status", "📊 ពិនិត្យស្ថានភាពប្រព័ន្ធ & ការពារ"),
             BotCommand("admin", "👑 ផ្ទាំងបញ្ជា Master Admin Panel"),
             BotCommand("groups", "📋 បញ្ជីគ្រប់គ្រងក្រុម & អតិថិជន"),
+            BotCommand("delgroup", "🗑️ លុបក្រុមចេញពីបញ្ជី (/delgroup <id>)"),
             BotCommand("adddays", "➕ បន្ថែមថ្ងៃប្រើប្រាស់ (/adddays <id> <days>)"),
             BotCommand("approve", "🎁 អនុញ្ញាត Free Trial 7 ថ្ងៃ (/approve <id>)"),
             BotCommand("remindadmin", "📢 ក្រើនរំលឹក Promote Bot ជា Admin"),
@@ -1983,12 +2124,19 @@ def main():
     app.add_handler(CommandHandler("plan", license_command))
     app.add_handler(CommandHandler("rules", rules_command))
     app.add_handler(CommandHandler("addgroup", addgroup_command))
+    app.add_handler(CommandHandler("clearkeyboard", clear_keyboard_command))
+    app.add_handler(CommandHandler("clearbuttons", clear_keyboard_command))
+    app.add_handler(CommandHandler("nobuttons", clear_keyboard_command))
+    app.add_handler(CommandHandler("resetmenu", clear_keyboard_command))
 
     # Master Super Admin Commands
     app.add_handler(CommandHandler("admin", admin_panel_command))
     app.add_handler(CommandHandler("panel", admin_panel_command))
     app.add_handler(CommandHandler("groups", groups_list_command))
     app.add_handler(CommandHandler("list", groups_list_command))
+    app.add_handler(CommandHandler("delgroup", delete_group_command))
+    app.add_handler(CommandHandler("deletegroup", delete_group_command))
+    app.add_handler(CommandHandler("removegroup", delete_group_command))
     app.add_handler(CommandHandler("adddays", adddays_command))
     app.add_handler(CommandHandler("approve", approve_command))
     app.add_handler(CommandHandler("check", check_command))
