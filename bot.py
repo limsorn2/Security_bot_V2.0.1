@@ -2274,138 +2274,639 @@ def main():
 class WebStatusHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
+            # API Endpoints
+            if self.path == "/api/groups":
+                groups_data = read_json(GROUPS_FILE, {})
+                self.send_response(200)
+                self.send_header("Content-type", "application/json; charset=utf-8")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps(groups_data, ensure_ascii=False).encode("utf-8"))
+                return
+            elif self.path == "/api/clients":
+                clients_data = read_json(CLIENTS_FILE, {})
+                self.send_response(200)
+                self.send_header("Content-type", "application/json; charset=utf-8")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps(clients_data, ensure_ascii=False).encode("utf-8"))
+                return
+            elif self.path == "/api/health":
+                self.send_response(200)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "online", "version": "2.0.1"}).encode("utf-8"))
+                return
+
             groups_data = read_json(GROUPS_FILE, {})
             clients_data = read_json(CLIENTS_FILE, {})
+            groups_json_str = json.dumps(groups_data, ensure_ascii=False)
+            clients_json_str = json.dumps(clients_data, ensure_ascii=False)
             
-            # Generate Web App HTML Status Page
+            # Generate Web App HTML Status Page matching user's exact Mobile Portal UI
             html_content = f"""<!DOCTYPE html>
 <html lang="km">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🛡️ Telegram Security Guard Bot - System Online</title>
-    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🛡️ Telegram Security Bot V2.0.1 - Web App</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+        * {{ box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }}
         body {{
-            font-family: 'Kantumruy Pro', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #090d16;
-            color: #f1f5f9;
+            font-family: 'Kantumruy Pro', 'Plus Jakarta Sans', -apple-system, sans-serif;
+            background: #0b1120;
+            color: #0f172a;
             display: flex;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            padding: 20px;
+            padding: 12px;
         }}
-        .card {{
-            background: #111827;
-            border: 1px solid #1f2937;
-            border-radius: 16px;
-            max-width: 520px;
+        .mobile-frame {{
             width: 100%;
-            padding: 28px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-            text-align: center;
+            max-width: 420px;
+            background: #ffffff;
+            border-radius: 40px;
+            overflow: hidden;
+            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 0 10px #1e293b;
+            position: relative;
+            min-height: 840px;
+            display: flex;
+            flex-direction: column;
         }}
-        .badge {{
-            display: inline-flex;
+        @media (max-width: 480px) {{
+            body {{ padding: 0; background: #ffffff; }}
+            .mobile-frame {{ border-radius: 0; box-shadow: none; min-height: 100vh; }}
+        }}
+        /* Status Bar */
+        .status-bar {{
+            background: #1d6fee;
+            color: #ffffff;
+            padding: 12px 20px 8px 20px;
+            display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 6px;
-            background: rgba(16, 185, 129, 0.15);
-            color: #34d399;
-            padding: 6px 14px;
-            border-radius: 9999px;
             font-size: 13px;
             font-weight: 700;
-            margin-bottom: 18px;
-            border: 1px solid rgba(16, 185, 129, 0.3);
         }}
-        .pulse {{
-            width: 8px;
-            height: 8px;
-            background: #34d399;
-            border-radius: 50%;
-            box-shadow: 0 0 10px #34d399;
-        }}
-        h1 {{
-            font-size: 22px;
+        .status-bar-left {{ display: flex; align-items: center; gap: 6px; }}
+        .status-bar-right {{ display: flex; align-items: center; gap: 8px; font-size: 11px; }}
+        
+        /* Top Header */
+        .header-section {{
+            background: #1d6fee;
+            padding: 10px 20px 20px 20px;
             color: #ffffff;
-            margin-bottom: 8px;
-            font-weight: 700;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }}
-        p.subtitle {{
-            color: #9ca3af;
-            font-size: 14px;
-            margin-bottom: 24px;
-        }}
-        .stats-grid {{
-            display: grid;
-            grid-template-columns: 1fr 1fr;
+        .user-profile {{
+            display: flex;
+            align-items: center;
             gap: 12px;
-            margin-bottom: 24px;
-            text-align: left;
         }}
-        .stat-box {{
-            background: #1f2937;
-            padding: 14px 16px;
-            border-radius: 12px;
-            border: 1px solid #374151;
+        .avatar-wrap {{
+            position: relative;
+            width: 48px;
+            height: 48px;
         }}
-        .stat-box .num {{
-            font-size: 20px;
+        .avatar-img {{
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #ffffff;
+            background: #2563eb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-weight: 700;
-            color: #38bdf8;
+            color: white;
+            font-size: 18px;
         }}
-        .stat-box .label {{
+        .avatar-cam {{
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            background: #f59e0b;
+            color: #111827;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            border: 2px solid #1d6fee;
+        }}
+        .avatar-badge {{
+            position: absolute;
+            bottom: -2px;
+            right: -2px;
+            background: #22c55e;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid #1d6fee;
+        }}
+        .user-info h2 {{
+            font-size: 17px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }}
+        .user-info p {{
             font-size: 12px;
-            color: #9ca3af;
+            color: rgba(255, 255, 255, 0.85);
+            display: flex;
+            align-items: center;
+            gap: 4px;
             margin-top: 2px;
         }}
-        .btn {{
-            display: block;
-            background: linear-gradient(135deg, #2563eb, #1d4ed8);
-            color: white;
-            text-decoration: none;
-            padding: 12px 20px;
-            border-radius: 10px;
-            font-weight: 600;
-            font-size: 14px;
-            transition: opacity 0.2s;
+        .lang-pill {{
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(8px);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 700;
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }}
-        .btn:hover {{ opacity: 0.9; }}
-        .footer {{
-            margin-top: 18px;
+
+        /* Hero Banner Card */
+        .banner-container {{
+            padding: 0 16px;
+            margin-top: -8px;
+        }}
+        .hero-banner {{
+            background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #3b82f6 100%);
+            border-radius: 24px;
+            padding: 20px 20px 16px 20px;
+            color: #ffffff;
+            box-shadow: 0 12px 25px -6px rgba(37, 99, 235, 0.5);
+            position: relative;
+            overflow: hidden;
+        }}
+        .banner-header {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 17px;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }}
+        .banner-desc {{
             font-size: 12px;
-            color: #6b7280;
+            color: rgba(255, 255, 255, 0.9);
+            line-height: 1.5;
+            max-width: 70%;
+        }}
+        .floating-icons {{
+            position: absolute;
+            right: 14px;
+            top: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: center;
+        }}
+        .float-badge {{
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }}
+        .fb-blue {{ background: #3b82f6; }}
+        .fb-yellow {{ background: #eab308; }}
+        .fb-purple {{ background: #a855f7; }}
+        .dots {{
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 14px;
+        }}
+        .dot {{
+            width: 6px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+        }}
+        .dot.active {{
+            width: 20px;
+            background: #ffffff;
+            border-radius: 4px;
+        }}
+
+        /* App Launcher Grid */
+        .apps-container {{
+            padding: 24px 20px;
+            flex: 1;
+        }}
+        .apps-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px 10px;
+            text-align: center;
+        }}
+        .app-item {{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.15s ease;
+        }}
+        .app-item:active {{ transform: scale(0.92); }}
+        .icon-box {{
+            width: 58px;
+            height: 58px;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.12);
+            margin-bottom: 8px;
+            color: #ffffff;
+        }}
+        .app-label {{
+            font-size: 11.5px;
+            font-weight: 600;
+            color: #1e293b;
+            line-height: 1.3;
+            max-width: 68px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }}
+
+        /* Distinct Icon Box Gradients */
+        .icon-cyan {{ background: linear-gradient(135deg, #00b4d8, #0077b6); }}
+        .icon-shield {{ background: linear-gradient(135deg, #475569, #334155); }}
+        .icon-bot {{ background: linear-gradient(135deg, #3b82f6, #1d4ed8); }}
+        .icon-purple {{ background: linear-gradient(135deg, #9333ea, #6b21a8); }}
+        .icon-red {{ background: linear-gradient(135deg, #ef4444, #dc2626); }}
+        .icon-green {{ background: linear-gradient(135deg, #10b981, #059669); }}
+        .icon-tg {{ background: linear-gradient(135deg, #0ea5e9, #0284c7); }}
+        .icon-settings {{ background: linear-gradient(135deg, #334155, #1e293b); }}
+
+        /* Bottom Action Bar */
+        .bottom-bar {{
+            padding: 14px 20px 24px 20px;
+            border-top: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #ffffff;
+        }}
+        .swipe-hint {{
+            font-size: 11px;
+            color: #94a3b8;
+            font-weight: 500;
+        }}
+        .android-btn {{
+            background: #059669;
+            color: #ffffff;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            box-shadow: 0 4px 10px rgba(5, 150, 105, 0.3);
+        }}
+
+        /* Interactive Modal */
+        .modal-overlay {{
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: flex-end;
+            z-index: 100;
+        }}
+        .modal-overlay.open {{ display: flex; }}
+        .modal-sheet {{
+            width: 100%;
+            background: #ffffff;
+            border-radius: 28px 28px 0 0;
+            padding: 24px 20px;
+            max-height: 80%;
+            overflow-y: auto;
+            animation: slideUp 0.25s ease-out;
+        }}
+        @keyframes slideUp {{
+            from {{ transform: translateY(100%); }}
+            to {{ transform: translateY(0); }}
+        }}
+        .sheet-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e2e8f0;
+        }}
+        .sheet-title {{
+            font-size: 18px;
+            font-weight: 800;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }}
+        .close-btn {{
+            background: #f1f5f9;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            font-weight: 700;
+            cursor: pointer;
+            color: #475569;
+        }}
+        .group-card {{
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 14px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }}
+        .gc-title {{ font-weight: 700; font-size: 14px; color: #1e293b; }}
+        .gc-id {{ font-size: 11px; color: #64748b; margin-top: 2px; }}
+        .vip-badge {{
+            background: #fef3c7;
+            color: #b45309;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 8px;
+            border: 1px solid #fde68a;
         }}
     </style>
 </head>
 <body>
-    <div class="card">
-        <div class="badge">
-            <div class="pulse"></div>
-            <span>Bot Web Status: 24/7 ONLINE</span>
-        </div>
-        <h1>🛡️ ប្រព័ន្ធការពារ Telegram Bot</h1>
-        <p class="subtitle">Security Guard Bot V2.0.1 ដំណើរការលើ Cloud</p>
 
-        <div class="stats-grid">
-            <div class="stat-box">
-                <div class="num">{len(groups_data)} ក្រុម</div>
-                <div class="label">👥 ក្រុមដែលកំពុងការពារ</div>
+    <div class="mobile-frame">
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-bar-left">
+                <span id="current-time">19:08</span>
+                <span>🛡️</span>
             </div>
-            <div class="stat-box">
-                <div class="num">{len(clients_data)} នាក់</div>
-                <div class="label">👤 អតិថិជនសកម្ម</div>
+            <div class="status-bar-right">
+                <span>285 KB/s</span>
+                <span>VoLTE</span>
+                <span>📶</span>
+                <span>🔋 100%</span>
             </div>
         </div>
 
-        <a href="https://t.me/PPTC_bot" class="btn" target="_blank">📱 បើក Telegram Bot (@PPTC_bot)</a>
-        <div class="footer">
-            Server Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}<br>
-            Master Admin ID: 240224709
+        <!-- Header Section -->
+        <div class="header-section">
+            <div class="user-profile">
+                <div class="avatar-wrap">
+                    <div class="avatar-img">LS</div>
+                    <div class="avatar-cam">📷</div>
+                    <div class="avatar-badge"></div>
+                </div>
+                <div class="user-info">
+                    <h2>LIM SORN 👑</h2>
+                    <p onclick="openModal('crm')" style="cursor: pointer;">View Profile &gt; • ✏️ ប្តូររូប</p>
+                </div>
+            </div>
+            <div class="lang-pill">KH KH</div>
+        </div>
+
+        <!-- Hero Banner Card -->
+        <div class="banner-container">
+            <div class="hero-banner">
+                <div class="banner-header">
+                    <span>🛡️</span> Telegram Security Bot V2.0.1
+                </div>
+                <div class="banner-desc">
+                    ការពារមេរោគ .apk, Anti-Spam & Auto Free Trial ៧ ថ្ងៃ
+                </div>
+                
+                <div class="floating-icons">
+                    <div class="float-badge fb-blue">🤖</div>
+                    <div class="float-badge fb-yellow">🛡️</div>
+                    <div class="float-badge fb-purple">✨</div>
+                </div>
+
+                <div class="dots">
+                    <div class="dot"></div>
+                    <div class="dot active"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 8-App Launcher Grid -->
+        <div class="apps-container">
+            <div class="apps-grid">
+                <!-- 1. ផ្ទាំងគ្រប់គ្រង -->
+                <div class="app-item" onclick="openModal('dashboard')">
+                    <div class="icon-box icon-cyan">📶</div>
+                    <span class="app-label">ផ្ទាំងគ្រប់គ្រង</span>
+                </div>
+
+                <!-- 2. គ្រប់គ្រងក្រុម -->
+                <div class="app-item" onclick="openModal('groups')">
+                    <div class="icon-box icon-shield">🛡️</div>
+                    <span class="app-label">គ្រប់គ្រងក្រុម</span>
+                </div>
+
+                <!-- 3. តេស្តសាកបត -->
+                <div class="app-item" onclick="openModal('bot')">
+                    <div class="icon-box icon-bot">🤖</div>
+                    <span class="app-label">តេស្តសាកបត</span>
+                </div>
+
+                <!-- 4. ស្កេនមេរោគ -->
+                <div class="app-item" onclick="openModal('scanner')">
+                    <div class="icon-box icon-purple">✨</div>
+                    <span class="app-label">ស្កេនមេរោគ</span>
+                </div>
+
+                <!-- 5. កំណត់ត្រាសន្តិសុខ -->
+                <div class="app-item" onclick="openModal('logs')">
+                    <div class="icon-box icon-red">📄</div>
+                    <span class="app-label">កំណត់ត្រាសន្តិ...</span>
+                </div>
+
+                <!-- 6. បញ្ជីអតិថិជន -->
+                <div class="app-item" onclick="openModal('crm')">
+                    <div class="icon-box icon-green">👤</div>
+                    <span class="app-label">បញ្ជីអតិថិជន</span>
+                </div>
+
+                <!-- 7. ផ្សាយ Channel -->
+                <div class="app-item" onclick="openModal('broadcast')">
+                    <div class="icon-box icon-tg">✈️</div>
+                    <span class="app-label">ផ្សាយ Channel</span>
+                </div>
+
+                <!-- 8. កំណត់ប្រព័ន្ធ -->
+                <div class="app-item" onclick="openModal('settings')">
+                    <div class="icon-box icon-settings">⚙️</div>
+                    <span class="app-label">កំណត់ប្រព័ន្ធ</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Action Bar -->
+        <div class="bottom-bar">
+            <span class="swipe-hint">Tap "More" or "Swipe up" to see all apps</span>
+            <a href="https://t.me/PPTC_bot" target="_blank" class="android-btn">
+                <span>📲</span> <span>បើក Telegram Bot</span>
+            </a>
+        </div>
+
+        <!-- Interactive Modal Sheet -->
+        <div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
+            <div class="modal-sheet" onclick="event.stopPropagation()">
+                <div class="sheet-header">
+                    <div id="sheet-title" class="sheet-title">🛡️ គ្រប់គ្រងក្រុម</div>
+                    <button class="close-btn" onclick="closeModal()">✕</button>
+                </div>
+                <div id="sheet-body">
+                    <!-- Dynamic Content Loaded via JS -->
+                </div>
+            </div>
         </div>
     </div>
+
+    <script>
+        const GROUPS_DATA = {groups_json_str};
+        const CLIENTS_DATA = {clients_json_str};
+
+        // Update real time
+        function updateClock() {{
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const mins = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('current-time').innerText = hours + ':' + mins;
+        }}
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        function openModal(type) {{
+            const overlay = document.getElementById('modal-overlay');
+            const title = document.getElementById('sheet-title');
+            const body = document.getElementById('sheet-body');
+
+            if (type === 'groups') {{
+                title.innerHTML = '🛡️ បញ្ជីក្រុមការពារ (' + Object.keys(GROUPS_DATA).length + ' ក្រុម)';
+                let html = '';
+                for (const id in GROUPS_DATA) {{
+                    const g = GROUPS_DATA[id];
+                    html += `
+                        <div class="group-card">
+                            <div>
+                                <div class="gc-title">${{g.title || 'Telegram Group'}}</div>
+                                <div class="gc-id">ID: ${{g.chat_id}} • ${{g.added_by_name || 'LIM SORN'}}</div>
+                            </div>
+                            <div class="vip-badge">${{g.plan_type || '👑 Lifetime VIP'}}</div>
+                        </div>
+                    `;
+                }}
+                body.innerHTML = html;
+            }} else if (type === 'dashboard') {{
+                title.innerHTML = '📶 ផ្ទាំងគ្រប់គ្រង & ស្ថិតិ';
+                body.innerHTML = `
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                        <div style="background: #eff6ff; padding: 15px; border-radius: 12px; border: 1px solid #bfdbfe;">
+                            <div style="font-size: 24px; font-weight: 800; color: #1d4ed8;">${{Object.keys(GROUPS_DATA).length}}</div>
+                            <div style="font-size: 12px; color: #64748b;">ក្រុម VIP សកម្ម</div>
+                        </div>
+                        <div style="background: #f0fdf4; padding: 15px; border-radius: 12px; border: 1px solid #bbf7d0;">
+                            <div style="font-size: 24px; font-weight: 800; color: #15803d;">100%</div>
+                            <div style="font-size: 12px; color: #64748b;">សុវត្ថិភាព 24/7</div>
+                        </div>
+                    </div>
+                    <p style="font-size: 13px; color: #475569; line-height: 1.6;">
+                        🛡️ ប្រព័ន្ធ Bot កំពុងដំណើរការការពារមេរោគ .apk និងការ Spam លើ Telegram ពេញ ២៤ ម៉ោង លើ Cloud!
+                    </p>
+                `;
+            }} else if (type === 'crm') {{
+                title.innerHTML = '👤 បញ្ជីអតិថិជន & CRM';
+                let html = '';
+                for (const id in CLIENTS_DATA) {{
+                    const c = CLIENTS_DATA[id];
+                    html += `
+                        <div class="group-card">
+                            <div>
+                                <div class="gc-title">${{c.client_group_name}}</div>
+                                <div class="gc-id">${{c.customer_contact.name || 'អតិថិជន'}} (${{c.customer_contact.username || 'N/A'}})</div>
+                            </div>
+                            <div class="vip-badge">${{c.plan_type}}</div>
+                        </div>
+                    `;
+                }}
+                body.innerHTML = html;
+            }} else if (type === 'bot') {{
+                title.innerHTML = '🤖 តេស្តសាកល្បង Telegram Bot';
+                body.innerHTML = `
+                    <div style="background: #f8fafc; padding: 16px; border-radius: 14px; border: 1px solid #e2e8f0; text-align: center;">
+                        <p style="font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 12px;">
+                            តេស្តពាក្យបញ្ជា Bot លើ Telegram ផ្ទាល់៖
+                        </p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 16px;">
+                            <code style="background: #e2e8f0; padding: 4px 8px; border-radius: 6px; font-size: 12px;">/start</code>
+                            <code style="background: #e2e8f0; padding: 4px 8px; border-radius: 6px; font-size: 12px;">/groups</code>
+                            <code style="background: #e2e8f0; padding: 4px 8px; border-radius: 6px; font-size: 12px;">/admin</code>
+                            <code style="background: #e2e8f0; padding: 4px 8px; border-radius: 6px; font-size: 12px;">/restore</code>
+                        </div>
+                        <a href="https://t.me/PPTC_bot" target="_blank" style="display: inline-block; background: #2563eb; color: white; text-decoration: none; padding: 10px 20px; border-radius: 10px; font-weight: 700; font-size: 13px;">🚀 ចុចទៅកាន់ Telegram Bot</a>
+                    </div>
+                `;
+            }} else if (type === 'scanner') {{
+                title.innerHTML = '✨ ម៉ាស៊ីនស្កេនមេរោគ .apk Lab';
+                body.innerHTML = `
+                    <div style="padding: 10px; text-align: center;">
+                        <p style="font-size: 13px; color: #475569; margin-bottom: 14px;">
+                            bot.py នឹងស្កេន និងលុបភ្លាមៗនូវ Files: <b>.apk, .xapk, .exe, .scr, .bat</b> ដោយស្វ័យប្រវត្តិ!
+                        </p>
+                        <div style="background: #fee2e2; color: #991b1b; padding: 12px; border-radius: 10px; font-size: 12px; font-weight: 600;">
+                            🛡️ Realtime APK Malware Interceptor: ACTIVE
+                        </div>
+                    </div>
+                `;
+            }} else {{
+                title.innerHTML = '⚙️ ការកំណត់ប្រព័ន្ធ';
+                body.innerHTML = `
+                    <p style="font-size: 13px; color: #475569; line-height: 1.6;">
+                        Master Admin ID: <b>240224709</b><br>
+                        Channel ផ្សាយពាណិជ្ជកម្ម: <b>@sornsecurityrobot</b><br>
+                        Server Version: <b>V2.0.1 Cloud Live</b>
+                    </p>
+                `;
+            }}
+
+            overlay.classList.add('open');
+        }}
+
+        function closeModal(e) {{
+            if (!e || e.target.id === 'modal-overlay' || e.target.classList.contains('close-btn')) {{
+                document.getElementById('modal-overlay').classList.remove('open');
+            }}
+        }}
+    </script>
 </body>
 </html>"""
             self.send_response(200)
