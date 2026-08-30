@@ -75,41 +75,44 @@ last_expiry_alerts: dict = {}
 # 2. PostgreSQL / Supabase (Free): DATABASE_URL or POSTGRES_URL
 # 3. Local JSON with Auto-Restore & Telegram Backup
 
-MONGODB_URI = os.getenv("MONGODB_URI") or os.getenv("MONGO_URL", "")
-POSTGRES_URL = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL", "")
-MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "sorn_security_bot")
-
 mongo_client = None
 mongo_db = None
 postgres_conn = None
 cloud_db_type = "Local Cache (No Cloud URI Set)"
 cloud_db_connected = False
+cloud_db_error = ""
 last_cloud_sync_time = "Never"
 
 def init_cloud_database():
     """ភ្ជាប់ទៅកាន់ Cloud Database (MongoDB Atlas ឬ PostgreSQL/Supabase) ប្រសិនបើមានកំណត់ Environment Variable"""
-    global mongo_client, mongo_db, postgres_conn, cloud_db_type, cloud_db_connected
+    global mongo_client, mongo_db, postgres_conn, cloud_db_type, cloud_db_connected, cloud_db_error
     
+    mongo_uri = os.getenv("MONGODB_URI") or os.getenv("MONGO_URL", "")
+    postgres_url = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL", "")
+    mongo_db_name = os.getenv("MONGODB_DB_NAME", "sorn_security_bot")
+
     # 1. ពិនិត្យ MongoDB Atlas
-    if MONGODB_URI:
+    if mongo_uri:
         try:
             from pymongo import MongoClient
-            mongo_client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=4000)
+            mongo_client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000, connectTimeoutMS=5000)
             # Test ping
             mongo_client.admin.command('ping')
-            mongo_db = mongo_client[MONGODB_DB_NAME]
+            mongo_db = mongo_client[mongo_db_name]
             cloud_db_type = "MongoDB Atlas (Cloud)"
             cloud_db_connected = True
-            logger.info(f"✅ ជោគជ័យ៖ បានតភ្ជាប់ Cloud Database: {cloud_db_type} (DB: {MONGODB_DB_NAME})")
-            return
+            cloud_db_error = ""
+            logger.info(f"✅ ជោគជ័យ៖ បានតភ្ជាប់ Cloud Database: {cloud_db_type} (DB: {mongo_db_name})")
+            return True
         except Exception as e:
+            cloud_db_error = f"MongoDB Error: {str(e)}"
             logger.warning(f"⚠️ មិនអាចតភ្ជាប់ MongoDB Atlas ({e}) -> ដំណើរការ Local Fallback...")
 
     # 2. ពិនិត្យ PostgreSQL / Supabase
-    if POSTGRES_URL:
+    if postgres_url:
         try:
             import psycopg2
-            postgres_conn = psycopg2.connect(POSTGRES_URL, connect_timeout=5)
+            postgres_conn = psycopg2.connect(postgres_url, connect_timeout=5)
             postgres_conn.autocommit = True
             with postgres_conn.cursor() as cur:
                 cur.execute("""
@@ -121,12 +124,19 @@ def init_cloud_database():
                 """)
             cloud_db_type = "PostgreSQL / Supabase (Cloud)"
             cloud_db_connected = True
+            cloud_db_error = ""
             logger.info(f"✅ ជោគជ័យ៖ បានតភ្ជាប់ Cloud Database: {cloud_db_type}")
-            return
+            return True
         except Exception as e:
+            cloud_db_error = f"Postgres Error: {str(e)}"
             logger.warning(f"⚠️ មិនអាចតភ្ជាប់ PostgreSQL ({e}) -> ដំណើរការ Local Fallback...")
 
+    if not mongo_uri and not postgres_url:
+        cloud_db_type = "Local Cache (No Cloud URI Set)"
+        cloud_db_error = "មិនទាន់មាន Environment Variable (MONGODB_URI) ក្នុង Process នេះនៅឡើយ"
+
     logger.info("ℹ️ មិនទាន់មាន Cloud Database URI -> ប្រើប្រាស់ Local Disk + Telegram Backup")
+    return False
 
 def cloud_sync_on_startup():
     """ទាញទិន្នន័យពី Cloud Database មកដាក់ក្នុង Local File ពេល Bot ចាប់ផ្ដើមដំណើរការ (Auto-Restore)"""
@@ -1115,22 +1125,30 @@ async def dbstatus_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user or not is_admin(user.id):
         return
 
+    # សាកល្បង Connect ម្តងទៀតប្រសិនបើមិនទាន់ភ្ជាប់
+    if not cloud_db_connected:
+        init_cloud_database()
+        if cloud_db_connected:
+            cloud_sync_on_startup()
+
     groups = read_json(GROUPS_FILE, {})
     clients = read_json(CLIENTS_FILE, {})
 
     status_icon = "🟢 ភ្ជាប់ជោគជ័យ (Live Synced)" if cloud_db_connected else "🟡 ដំណើរការ Local Cache (គ្មាន Cloud URI)"
     
+    err_section = f"\n⚠️ <b>កត់សម្គាល់:</b> <code>{cloud_db_error}</code>\n" if (not cloud_db_connected and cloud_db_error) else ""
+
     text = (
         "🗄️ <b>ស្ថានភាព CLOUD DATABASE PERSISTENCE</b> 🗄️\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         f"🌐 <b>ប្រភេទ Database:</b> <code>{cloud_db_type}</code>\n"
         f"⚡ <b>ស្ថានភាពតភ្ជាប់:</b> {status_icon}\n"
+        f"{err_section}"
         f"📊 <b>ទិន្នន័យក្រុម (Groups):</b> <code>{len(groups)}</code> ក្រុម\n"
         f"👥 <b>ទិន្នន័យអតិថិជន (Clients):</b> <code>{len(clients)}</code> នាក់\n"
         f"🕒 <b>Sync ចុងក្រោយ:</b> <code>{last_cloud_sync_time}</code>\n\n"
         "💡 <b>ការណែនាំកំណត់ Cloud Database (Free):</b>\n"
         "• <b>MongoDB Atlas (Free 512MB):</b> កំណត់ Environment <code>MONGODB_URI</code> លើ Render\n"
-        "• <b>PostgreSQL / Supabase (Free):</b> កំណត់ Environment <code>DATABASE_URL</code> លើ Render\n"
         "• បញ្ជា <code>/synccloud</code> ដើម្បី Force Sync ទិន្នន័យ\n"
         "• បញ្ជា <code>/backup</code> ដើម្បីទាញយកឯកសារ Backup .json\n"
         "━━━━━━━━━━━━━━━━━━━━"
