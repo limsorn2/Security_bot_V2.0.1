@@ -408,16 +408,20 @@ app.post("/api/groups/:id/action", (req, res) => {
 
   // If group does not exist yet (e.g. Bot just added to group via auto-sync)
   if (!groups[id]) {
+    const expDate = new Date();
+    expDate.setDate(expDate.getDate() + 7);
+    const expStr = expDate.toISOString().replace("T", " ").substring(0, 19);
+
     groups[id] = {
       title: title || `Group ${id}`,
       chat_id: parseInt(id, 10) || id,
       added_at: nowStr,
-      is_authorized: false,
-      is_enabled: false,
-      plan_type: "🎁 Pending Approval (រង់ចាំ Admin អនុញ្ញាត ៧ ថ្ងៃ)",
+      is_authorized: true,
+      is_enabled: true,
+      plan_type: "🎁 Free Trial 7 Days (សាកល្បង ៧ ថ្ងៃ)",
       is_lifetime: false,
-      activated_date: "Not Yet Activated",
-      expiry_date: "Not Yet Activated",
+      activated_date: nowStr,
+      expiry_date: expStr,
       last_reminder_ts: Date.now() / 1000,
       added_by_id: addedById || 240224709,
       added_by_name: addedByName || "Group Admin",
@@ -432,13 +436,13 @@ app.post("/api/groups/:id/action", (req, res) => {
       client_group_id: parseInt(id, 10) || id,
       client_group_name: groups[id].title,
       registered_date: groups[id].added_at || nowStr,
-      activated_date: groups[id].activated_date || "Not Yet Activated",
-      expiry_date: groups[id].expiry_date || "Not Yet Activated",
-      plan_type: groups[id].plan_type || "🎁 Pending Approval (រង់ចាំ Admin អនុញ្ញាត ៧ ថ្ងៃ)",
+      activated_date: groups[id].activated_date || nowStr,
+      expiry_date: groups[id].expiry_date || nowStr,
+      plan_type: groups[id].plan_type || "🎁 Free Trial 7 Days (សាកល្បង ៧ ថ្ងៃ)",
       is_lifetime: groups[id].is_lifetime || false,
       license_status: groups[id].is_authorized
-        ? (groups[id].plan_type.includes("Trial") ? "🟢 ACTIVE TRIAL (សាកល្បង ៧ ថ្ងៃ)" : "🟢 ACTIVE (បានទិញសិទ្ធិ)")
-        : "🟡 PENDING APPROVAL (រង់ចាំ Admin អនុញ្ញាត ៧ ថ្ងៃ)",
+        ? (groups[id].plan_type?.includes("Trial") ? "🟢 ACTIVE TRIAL (សាកល្បង ៧ ថ្ងៃ)" : "🟢 ACTIVE (បានទិញសិទ្ធិ)")
+        : "🟡 PENDING APPROVAL",
       customer_contact: {
         name: groups[id].added_by_name || "Group Admin",
         user_id: String(groups[id].added_by_id || "N/A"),
@@ -446,13 +450,13 @@ app.post("/api/groups/:id/action", (req, res) => {
       },
       purchase_history: [
         {
-          package: "Telegram Group Auto-Registered",
+          package: "Auto-Registered 7-Day Free Trial",
           purchased_date: nowStr,
-          duration: "Pending Admin Approval",
-          status: "Pending"
+          duration: "7 Days",
+          status: "Active"
         }
       ],
-      security_stats: { threats_blocked: 0, spams_blocked: 0, last_incident: "Bot Added to Group" }
+      security_stats: { threats_blocked: 0, spams_blocked: 0, last_incident: "Bot Added - Free Trial Activated" }
     };
   }
 

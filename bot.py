@@ -213,10 +213,11 @@ def sync_threat_log_to_dashboard(event_type: str, chat_id: str, chat_title: str,
         logger.debug(f"Dashboard sync skipped or offline: {e}")
 
 def auto_register_group(chat_id: str, title: str, added_by_name: str, added_by_username: str, added_by_id: str):
-    """ចុះឈ្មោះ Group និង Client ចូលក្នុងបញ្ជីស្វ័យប្រវត្តិ (ទាំង Local Files & Web Dashboard API)"""
+    """ចុះឈ្មោះ Group និង Client ចូលក្នុងបញ្ជីស្វ័យប្រវត្តិ ព្រមទាំងផ្ដល់ Free Trial 7 ថ្ងៃ (1 សប្ដាហ៍) អូតូភ្លាមៗ"""
     now = datetime.now()
     now_str = now.strftime("%Y-%m-%d %H:%M:%S")
     cid_str = str(chat_id)
+    exp_7days = (now + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
 
     # 1. Update local files directly
     groups = read_json(GROUPS_FILE, {})
@@ -229,12 +230,12 @@ def auto_register_group(chat_id: str, title: str, added_by_name: str, added_by_u
             "title": title or f"Group {cid_str}",
             "chat_id": int(cid_str) if cid_str.lstrip("-").isdigit() else cid_str,
             "added_at": now_str,
-            "is_authorized": False,
-            "is_enabled": False,
-            "plan_type": "🎁 Pending Approval (រង់ចាំ Admin អនុញ្ញាត ៧ ថ្ងៃ)",
+            "is_authorized": True,
+            "is_enabled": True,
+            "plan_type": "🎁 Free Trial 7 Days (សាកល្បង ៧ ថ្ងៃ)",
             "is_lifetime": False,
-            "activated_date": "Not Yet Activated",
-            "expiry_date": "Not Yet Activated",
+            "activated_date": now_str,
+            "expiry_date": exp_7days,
             "last_reminder_ts": time.time(),
             "added_by_id": added_by_id or "240224709",
             "added_by_name": added_by_name or "Group Admin",
@@ -246,11 +247,11 @@ def auto_register_group(chat_id: str, title: str, added_by_name: str, added_by_u
             "client_group_id": int(cid_str) if cid_str.lstrip("-").isdigit() else cid_str,
             "client_group_name": groups[cid_str]["title"],
             "registered_date": now_str,
-            "activated_date": "Not Yet Activated",
-            "expiry_date": "Not Yet Activated",
-            "plan_type": "🎁 Pending Approval (រង់ចាំ Admin អនុញ្ញាត ៧ ថ្ងៃ)",
+            "activated_date": now_str,
+            "expiry_date": exp_7days,
+            "plan_type": "🎁 Free Trial 7 Days (សាកល្បង ៧ ថ្ងៃ)",
             "is_lifetime": False,
-            "license_status": "🟡 PENDING APPROVAL (រង់ចាំ Admin អនុញ្ញាត ៧ ថ្ងៃ)",
+            "license_status": "🟢 ACTIVE TRIAL (សាកល្បង ៧ ថ្ងៃ)",
             "customer_contact": {
                 "name": added_by_name or "Group Admin",
                 "user_id": str(added_by_id or "N/A"),
@@ -258,18 +259,18 @@ def auto_register_group(chat_id: str, title: str, added_by_name: str, added_by_u
             },
             "purchase_history": [
                 {
-                    "package": "Auto-Registered from Telegram",
+                    "package": "Auto-Registered 7-Day Free Trial",
                     "purchased_date": now_str,
-                    "duration": "Pending Approval",
-                    "status": "Pending"
+                    "duration": "7 Days",
+                    "status": "Active"
                 }
             ],
-            "security_stats": {"threats_blocked": 0, "spams_blocked": 0, "last_incident": "Bot Added to Group"}
+            "security_stats": {"threats_blocked": 0, "spams_blocked": 0, "last_incident": "Bot Added - Free Trial Activated"}
         }
 
         write_json(GROUPS_FILE, groups)
         write_json(CLIENTS_FILE, clients)
-        logger.info(f"💾 បានកត់ត្រាក្រុមថ្មី {title} (ID: {cid_str}) ចូលក្នុងបញ្ជីអតិថិជនស្វ័យប្រវត្តិ!")
+        logger.info(f"💾 បានកត់ត្រាក្រុមថ្មី {title} (ID: {cid_str}) និងបើក Free Trial 7 ថ្ងៃដោយស្វ័យប្រវត្តិ!")
 
     # 2. Sync to Web Dashboard REST API
     try:
@@ -1382,16 +1383,22 @@ async def my_chat_member_handler(update: Update, context: ContextTypes.DEFAULT_T
             added_by_id=adder_id
         )
 
-        # 1. Send welcome & setup instructions to the group
+        # 1. Send welcome & setup instructions to the group with 1-Week Trial Announcement
         welcome_msg = (
-            "🛡️ <b>Security_bot_V2.0.1 ត្រូវបានបន្ថែមចូលក្នុងគ្រុប!</b>\n\n"
+            "🛡️ <b>Security_bot_V2.0.1 ត្រូវបានបន្ថែមចូលក្នុងគ្រុប!</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
             f"👥 <b>ក្រុម:</b> <code>{chat_title}</code>\n"
             f"📍 <b>Group ID:</b> <code>{chat_id}</code>  <i>(ចុចដើម្បី Copy)</i>\n"
             f"👑 <b>បន្ថែមដោយ:</b> {adder_name} ({adder_username})\n\n"
+            "🎁 <b>ប្រព័ន្ធបានផ្ដល់សិទ្ធិសាកល្បង Free Trial ៧ ថ្ងៃ (១ សប្ដាហ៍) ដោយស្វ័យប្រវត្តិ!</b>\n"
+            f"⏳ <b>សុពលភាពដល់ថ្ងៃ៖</b> <code>{(datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')}</code>\n\n"
             "⚠️ <b>ជំហានសំខាន់ដើម្បីបើកការការពារពេញលេញ៖</b>\n"
             "1. សូម Promote Bot ឱ្យទៅជា <b>Admin</b>\n"
             "2. បើកសិទ្ធិ <b>Delete Messages</b> និង <b>Ban/Restrict Users</b>\n\n"
-            "✅ <i>ប្រព័ន្ធការពារមេរោគ .apk/.exe និង Anti-Flood បានចាប់ផ្តើមជាផ្លូវការ!</i>"
+            "📞 <b>សូមទាក់ទង Master Admin ដើម្បីពិគ្រោះ ឬជាវកញ្ចប់សេវា៖</b>\n"
+            "👉 <b>Telegram:</b> @sornsecurityrobot (ID: <code>240224709</code>)\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
+            "✅ <i>ប្រព័ន្ធការពារមេរោគ .apk/.exe និង Anti-Flood បានចាប់ផ្តើមការពារជាផ្លូវការ!</i>"
         )
         try:
             await context.bot.send_message(
@@ -1413,9 +1420,9 @@ async def my_chat_member_handler(update: Update, context: ContextTypes.DEFAULT_T
                 f"👤 <b>បន្ថែមដោយ:</b> {adder_name} ({adder_username})\n"
                 f"🔑 <b>User ID:</b> <code>{adder_id}</code>\n"
                 f"📅 <b>កាលបរិច្ឆេទ:</b> <code>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</code>\n"
-                "🎁 <b>ស្ថានភាព:</b> 🟡 <b>បានកត់ត្រាចូលបញ្ជីអតិថិជនស្វ័យប្រវត្តិ!</b>\n"
+                "🎁 <b>ស្ថានភាព:</b> 🟢 <b>បានចុះបញ្ជី & បើកសិទ្ធិ Free Trial 7 ថ្ងៃ (1 សប្ដាហ៍) អូតូរួចរាល់!</b>\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
-                "👇 <i>ចុចប៊ូតុងខាងក្រោមដើម្បីផ្ដល់សិទ្ធិភ្លាមៗ៖</i>"
+                "👇 <i>ចុចប៊ូតុងខាងក្រោមដើម្បីគ្រប់គ្រង ឬកែប្រែរយៈពេលបន្ថែម៖</i>"
             )
             await context.bot.send_message(
                 chat_id=ADMIN_ID,
@@ -1452,14 +1459,20 @@ async def chat_member_update_handler(update: Update, context: ContextTypes.DEFAU
             )
 
             welcome_msg = (
-                "🛡️ <b>Security_bot_V2.0.1 ត្រូវបានបន្ថែមចូលក្នុងគ្រុប!</b>\n\n"
+                "🛡️ <b>Security_bot_V2.0.1 ត្រូវបានបន្ថែមចូលក្នុងគ្រុប!</b>\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
                 f"👥 <b>ក្រុម:</b> <code>{chat_title}</code>\n"
                 f"📍 <b>Group ID:</b> <code>{chat_id}</code>  <i>(ចុចដើម្បី Copy)</i>\n"
                 f"👑 <b>បន្ថែមដោយ:</b> {adder_name} ({adder_username})\n\n"
+                "🎁 <b>ប្រព័ន្ធបានផ្ដល់សិទ្ធិសាកល្បង Free Trial ៧ ថ្ងៃ (១ សប្ដាហ៍) ដោយស្វ័យប្រវត្តិ!</b>\n"
+                f"⏳ <b>សុពលភាពដល់ថ្ងៃ៖</b> <code>{(datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')}</code>\n\n"
                 "⚠️ <b>ជំហានសំខាន់ដើម្បីបើកការការពារពេញលេញ៖</b>\n"
                 "1. សូម Promote Bot ឱ្យទៅជា <b>Admin</b>\n"
                 "2. បើកសិទ្ធិ <b>Delete Messages</b> និង <b>Ban/Restrict Users</b>\n\n"
-                "✅ <i>ប្រព័ន្ធការពារមេរោគ .apk/.exe និង Anti-Flood បានចាប់ផ្តើមជាផ្លូវការ!</i>"
+                "📞 <b>សូមទាក់ទង Master Admin ដើម្បីពិគ្រោះ ឬជាវកញ្ចប់សេវា៖</b>\n"
+                "👉 <b>Telegram:</b> @sornsecurityrobot (ID: <code>240224709</code>)\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                "✅ <i>ប្រព័ន្ធការពារមេរោគ .apk/.exe និង Anti-Flood បានចាប់ផ្តើមការពារជាផ្លូវការ!</i>"
             )
             await message.reply_text(welcome_msg, parse_mode="HTML", reply_markup=get_main_menu_keyboard(context.bot.username or ""))
 
@@ -1473,8 +1486,9 @@ async def chat_member_update_handler(update: Update, context: ContextTypes.DEFAU
                     f"👤 <b>បន្ថែមដោយ:</b> {adder_name} ({adder_username})\n"
                     f"🔑 <b>User ID:</b> <code>{adder_id}</code>\n"
                     f"📅 <b>កាលបរិច្ឆេទ:</b> <code>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</code>\n"
-                    "🎁 <b>ស្ថានភាព:</b> 🟡 <b>បានកត់ត្រាចូលបញ្ជីអតិថិជនស្វ័យប្រវត្តិ!</b>\n"
-                    "━━━━━━━━━━━━━━━━━━━━"
+                    "🎁 <b>ស្ថានភាព:</b> 🟢 <b>បានចុះបញ្ជី & បើកសិទ្ធិ Free Trial 7 ថ្ងៃ (1 សប្ដាហ៍) អូតូរួចរាល់!</b>\n"
+                    "━━━━━━━━━━━━━━━━━━━━\n"
+                    "👇 <i>ចុចប៊ូតុងខាងក្រោមដើម្បីគ្រប់គ្រង ឬកែប្រែរយៈពេលបន្ថែម៖</i>"
                 )
                 await context.bot.send_message(
                     chat_id=ADMIN_ID,
