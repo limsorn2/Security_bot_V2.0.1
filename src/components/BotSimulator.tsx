@@ -126,10 +126,21 @@ export const BotSimulator: React.FC<BotSimulatorProps> = ({
     }
   }, []);
 
-  // 30s Countdown timer tick
+  // 15s Countdown timer tick
   useEffect(() => {
     const timer = setInterval(() => {
       setGroupMessages((prev) =>
+        prev
+          .map((m) => {
+            if (m.expiresInSeconds !== undefined && m.expiresInSeconds > 0) {
+              return { ...m, expiresInSeconds: m.expiresInSeconds - 1 };
+            }
+            return m;
+          })
+          .filter((m) => m.expiresInSeconds === undefined || m.expiresInSeconds > 0)
+      );
+
+      setPrivateMessages((prev) =>
         prev
           .map((m) => {
             if (m.expiresInSeconds !== undefined && m.expiresInSeconds > 0) {
@@ -144,23 +155,35 @@ export const BotSimulator: React.FC<BotSimulatorProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  const addPrivateBotMessage = (text: string, buttons?: { label: string; action: string }[][]) => {
+  const addPrivateBotMessage = (
+    text: string,
+    buttons?: { label: string; action: string }[][],
+    expiresInSeconds: number = 15
+  ) => {
+    // Rule: Delete previous temporary bot response messages when new command comes in
     setPrivateMessages((prev) => [
-      ...prev,
+      ...prev.filter((m) => m.sender !== "bot" || m.expiresInSeconds === undefined),
       {
         id: "bot-" + Date.now() + Math.random(),
         sender: "bot",
         senderName: "TeleGuard Security Bot",
         text,
         buttons,
+        expiresInSeconds,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       }
     ]);
   };
 
-  const addGroupBotMessage = (text: string, expireSeconds: number = 30, isMalwareAlert: boolean = false) => {
+  const addGroupBotMessage = (
+    text: string,
+    expireSeconds: number = 15,
+    isMalwareAlert: boolean = false,
+    buttons?: { label: string; action: string }[][]
+  ) => {
+    // Rule: Replace old bot response messages in group when a new command arrives
     setGroupMessages((prev) => [
-      ...prev,
+      ...prev.filter((m) => m.sender !== "bot" || m.expiresInSeconds === undefined),
       {
         id: "bot-" + Date.now() + Math.random(),
         sender: "bot",
@@ -168,6 +191,7 @@ export const BotSimulator: React.FC<BotSimulatorProps> = ({
         text,
         expiresInSeconds: expireSeconds,
         isMalwareAlert,
+        buttons,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       }
     ]);
@@ -246,7 +270,49 @@ export const BotSimulator: React.FC<BotSimulatorProps> = ({
       );
     } else if (cmd === "🚀 ចាប់ផ្ដើម Bot ឡើងវិញ (/start)" || cmd === "/start") {
       addPrivateBotMessage(
-        "👑 **សូមស្វាគមន៍ម្ចាស់ Bot ផ្ទាល់! (Sole Master Owner - ID: `240224709`)**\n\n🎛️ **ផ្ទាំងបញ្ជាគ្រប់គ្រងពេញលេញ (100% Full Commercial & CRM Control)** ត្រូវបាន Refresh រួចរាល់!"
+        "👑 **សូមស្វាគមន៍ម្ចាស់ Bot ផ្ទាល់! (Sole Master Owner - ID: `240224709`)**\n\n🎛️ **ផ្ទាំងបញ្ជាគ្រប់គ្រងពេញលេញ (100% Full Commercial & CRM Control)** ត្រូវបាន Refresh រួចរាល់!",
+        [
+          [
+            { label: "⚙️ Admin Dashboard", action: "dash_refresh" },
+            { label: "📋 បញ្ជីអតិថិជន CRM", action: "dash_clients" }
+          ],
+          [
+            { label: "➕ Add Bot ទៅ Group ថ្មី", action: "test_add_new_group" },
+            { label: "⚠️ តេស្ត Expiry Alert", action: "test_expiry_alert" }
+          ],
+          [
+            { label: "💾 Backup (.json)", action: "dash_backup" },
+            { label: "🔄 ស្កេន Expiry", action: "dash_notify_expiry" }
+          ]
+        ]
+      );
+    } else if (cmd.startsWith("/adddays")) {
+      const parts = cmd.split(" ");
+      const targetCid = parts[1] || selectedGroupKey;
+      const days = parseInt(parts[2] || "30", 10);
+      onGroupAction(targetCid, "add_days", { days });
+      addPrivateBotMessage(`✅ **បានបន្ថែម ${days} ថ្ងៃជូនក្រុម \`${groups[targetCid]?.title || targetCid}\` ជោគជ័យ!**`);
+    } else if (cmd.startsWith("/approve")) {
+      const parts = cmd.split(" ");
+      const targetCid = parts[1] || selectedGroupKey;
+      onGroupAction(targetCid, "add_days", { days: 7 });
+      addPrivateBotMessage(`🎁 **បានអនុញ្ញាត Free Trial 7 ថ្ងៃជូនក្រុម \`${groups[targetCid]?.title || targetCid}\` ជោគជ័យ!**`);
+    } else if (cmd === "/license" || cmd === "/plan") {
+      const targetGroup = groups[selectedGroupKey];
+      addPrivateBotMessage(
+        `🔐 **ព័ត៌មានអាជ្ញាប័ណ្ណ & កញ្ចប់សេវា (License Info)**\n━━━━━━━━━━━━━━━━━━━━\n👥 **ក្រុម:** \`${targetGroup?.title || "Telegram Group"}\`\n📍 **Group ID:** \`${selectedGroupKey}\`\n🛒 **កញ្ចប់សេវា:** ${targetGroup?.plan_type || "N/A"}\n📅 **ថ្ងៃចាប់ផ្តើម:** \`${targetGroup?.activated_date || "Not Activated"}\`\n⏳ **ថ្ងៃផុតកំណត់:** \`${targetGroup?.expiry_date || "Not Activated"}\`\n🛡️ **ស្ថានភាព:** ${targetGroup?.is_authorized ? "🟢 ACTIVE" : "🔴 INACTIVE / PENDING"}\n━━━━━━━━━━━━━━━━━━━━`
+      );
+    } else if (cmd === "/addgroup") {
+      addPrivateBotMessage(
+        `➕ **Link បន្ថែម Bot ទៅកាន់ Telegram Group ផ្សេងទៀត:**\n\n🔗 https://t.me/sornsecurityrobot?startgroup=true\n\n💡 ពេលគេ Add Bot ចូលក្រុមណាមួយ Bot នឹងកត់ត្រាចូលបញ្ជីអតិថិជនស្វ័យប្រវត្តិ និង Alert មក Master Admin ភ្លាមៗ!`
+      );
+    } else if (cmd === "/backup") {
+      addPrivateBotMessage(
+        `💾 **ទិន្នន័យបម្រុងទុក (Cloud Backup JSON File):**\n\n✅ បាន Export ទិន្នន័យអតិថិជន និងក្រុមសរុប ${Object.keys(groups).length} ក្រុមចូលក្នុង file \`vault_backup.json\` រួចរាល់!`
+      );
+    } else if (cmd === "/notifyexpiry") {
+      addPrivateBotMessage(
+        `🔍 **បានស្កេន និងផ្ញើសារដំណឹងផុតកំណត់ទៅកាន់ Group Admin ផ្ទាល់ក្នុង Private Chat និង Group រួចរាល់!**`
       );
     } else {
       addPrivateBotMessage(`🤖 បានទទួលបញ្ជា: "${cmd}"`);
@@ -311,8 +377,115 @@ export const BotSimulator: React.FC<BotSimulatorProps> = ({
       handleMasterCommand("📋 បញ្ជីអតិថិជន & Group");
     } else if (action === "dash_logs") {
       handleMasterCommand("📜 ប្រវត្តិការពារ & ការទិញបត");
-    } else if (action === "dash_broadcast") {
-      handleMasterCommand("📢 ផ្សាយពាណិជ្ជកម្មទៅ Channel");
+    } else if (action === "dash_backup") {
+      handleMasterCommand("/backup");
+    } else if (action === "dash_notify_expiry") {
+      handleMasterCommand("/notifyexpiry");
+    } else if (action === "test_add_new_group") {
+      const newGid = "-100" + Math.floor(1000000000 + Math.random() * 9000000000);
+      const newTitle = `Crypto & Tech Group #${Math.floor(10 + Math.random() * 90)}`;
+      onGroupAction(newGid, "direct_add", {
+        title: newTitle,
+        isAuthorized: false,
+        isEnabled: false,
+        planType: "🎁 Pending Approval (រង់ចាំ Admin អនុញ្ញាត ៧ ថ្ងៃ)",
+        addedByName: "Dara Developer",
+        addedByUsername: "@dara_dev",
+        addedById: "88991122"
+      });
+
+      addPrivateBotMessage(
+        `🎉 **[ក្រុមថ្មីបានបន្ថែម BOT - NEW GROUP REGISTERED]**\n━━━━━━━━━━━━━━━━━━━━\n👥 **ឈ្មោះក្រុម:** \`${newTitle}\`\n📍 **Group ID:** \`${newGid}\`\n👤 **បន្ថែមដោយ:** Dara Developer (@dara_dev)\n🔑 **User ID:** \`88991122\`\n📅 **កាលបរិច្ឆេទ:** \`${new Date().toISOString().replace("T", " ").substring(0, 19)}\`\n🎁 **ស្ថានភាព:** 🟡 **បានកត់ត្រាចូលបញ្ជីអតិថិជនស្វ័យប្រវត្តិ!**\n━━━━━━━━━━━━━━━━━━━━\n👇 *ចុចប៊ូតុងខាងក្រោមដើម្បីផ្ដល់សិទ្ធិភ្លាមៗ៖*`,
+        [
+          [
+            { label: "🎁 អនុញ្ញាត Trial 7 ថ្ងៃ", action: `add_7_${newGid}` },
+            { label: "➕ ផ្ដល់ 30 ថ្ងៃ", action: `add_30_${newGid}` }
+          ],
+          [
+            { label: "👑 ផ្ដល់ Lifetime VIP", action: `set_life_${newGid}` },
+            { label: "🔴 ដកសិទ្ធិ (Revoke)", action: `revoke_${newGid}` }
+          ]
+        ]
+      );
+    } else if (action === "test_expiry_alert") {
+      const g = groups[selectedGroupKey];
+      const gTitle = g?.title || "Telegram Group";
+      addPrivateBotMessage(
+        `⚠️ **[ការជូនដំណឹងពីសុពលភាពបត - BOT LICENSE EXPIRED]**\n━━━━━━━━━━━━━━━━━━━━\n👥 **ក្រុម៖** \`${gTitle}\`\n📍 **Group ID:** \`${selectedGroupKey}\`\n⏳ **កាលបរិច្ឆេទផុតកំណត់៖** \`2026-08-29 00:00:00\`\n\n🛡️ **សុពលភាពបតរបស់អ្នកបានផុតកំណត់ហើយ!**\nប្រព័ន្ធការពារមេរោគ (.apk/.exe) និង Anti-Spam ត្រូវបានផ្អាកជាបណ្តោះអាសន្ន។\n\n👉 **សូមទាក់ទង Master Admin ដើម្បីបន្តសុពលភាព ឬទិញកញ្ចប់បន្ថែម៖**\n👑 **Super Admin:** @sornsecurityrobot (ID: \`240224709\`)\n━━━━━━━━━━━━━━━━━━━━`,
+        [
+          [
+            { label: "👑 ទាក់ទង Master Admin", action: "dash_broadcast" },
+            { label: "🔄 ពិនិត្យស្ថានភាពឡើងវិញ", action: "btn_status" }
+          ]
+        ]
+      );
+    } else if (action.startsWith("add_7_")) {
+      const gId = action.replace("add_7_", "");
+      await onGroupAction(gId, "add_days", { days: 7 });
+      addPrivateBotMessage(`🎁 **បានអនុញ្ញាត Free Trial 7 ថ្ងៃជូនក្រុម \`${groups[gId]?.title || gId}\` ជោគជ័យ!**`);
+    } else if (action === "btn_id") {
+      const g = groups[selectedGroupKey];
+      addPrivateBotMessage(
+        `🆔 **ព័ត៌មានអត្តសញ្ញាណ (ID & Chat Info)**\n━━━━━━━━━━━━━━━━━━━━\n👥 **ឈ្មោះក្រុម:** \`${g?.title || "Telegram Group"}\`\n📍 **Group ID:** \`${selectedGroupKey}\`  *(ចុចដើម្បី Copy)*\n\n👤 **អ្នកស្នើសុំ:** Master Super Admin\n🔑 **User ID:** \`240224709\`\n━━━━━━━━━━━━━━━━━━━━\n⏱️ *សារនេះនឹងរលាយបាត់ក្នុង ១៥ វិនាទី ឬនៅពេលមានពាក្យបញ្ជាថ្មី។*`,
+        [
+          [
+            { label: "🔙 ត្រឡប់ទៅ Menu មេ", action: "btn_main_menu" },
+            { label: "🔄 Refresh", action: "btn_refresh" }
+          ],
+          [
+            { label: "➕ Add Bot ទៅកាន់ Group", action: "dash_broadcast" },
+            { label: "❌ បិទសារ", action: "btn_close" }
+          ]
+        ],
+        15
+      );
+    } else if (action === "btn_status") {
+      addPrivateBotMessage(
+        `📊 **ស្ថានភាពប្រព័ន្ធសន្តិសុខ (System Status)**\n━━━━━━━━━━━━━━━━━━━━\n🛡️ **Bot Engine:** Security_bot_V2.0.1 (Online ✅)\n🚫 **Anti-Malware:** Active (.apk, .exe, .bat, .js...)\n⚡ **Anti-Flood:** Active (Limit 5 msgs / 4s)\n🔄 **2-Way CRM Sync:** Online Realtime\n👑 **Super Admin:** ID \`240224709\`\n━━━━━━━━━━━━━━━━━━━━\n⏱️ *សារនេះនឹងរលាយបាត់ក្នុង ១៥ វិនាទី ឬនៅពេលមានពាក្យបញ្ជាថ្មី។*`,
+        [
+          [
+            { label: "🔙 ត្រឡប់ទៅ Menu មេ", action: "btn_main_menu" },
+            { label: "🔄 Refresh", action: "btn_refresh" }
+          ],
+          [
+            { label: "❌ បិទសារ", action: "btn_close" }
+          ]
+        ],
+        15
+      );
+    } else if (action === "btn_rules") {
+      addPrivateBotMessage(
+        `🛡️ **គោលការណ៍សុវត្ថិភាពគ្រុប (Security Rules)**\n━━━━━━━━━━━━━━━━━━━━\n1. 🚫 **ហាមដាច់ខាត:** ផ្ញើ File មេរោគ (.apk, .exe, .cmd, .scr, .bat...)\n2. ⚡ **ហាម Spam:** ផ្ញើសារ Flood ញាប់លើសកំណត់ក្នុងគ្រុប\n3. 🔗 **ហាម Phishing:** ផ្ញើ Link បោកប្រាស់ ឬផ្សព្វផ្សាយខុសច្បាប់\n4. ⚖️ **វិធានការ:** ប្រព័ន្ធនឹងលុបសារ និងកំហិតសិទ្ធិដោយស្វ័យប្រវត្តិ!\n━━━━━━━━━━━━━━━━━━━━\n⏱️ *សារនេះនឹងរលាយបាត់ក្នុង ១៥ វិនាទី ឬនៅពេលមានពាក្យបញ្ជាថ្មី។*`,
+        [
+          [
+            { label: "🔙 ត្រឡប់ទៅ Menu មេ", action: "btn_main_menu" },
+            { label: "🔄 Refresh", action: "btn_refresh" }
+          ],
+          [
+            { label: "❌ បិទសារ", action: "btn_close" }
+          ]
+        ],
+        15
+      );
+    } else if (action === "btn_help") {
+      addPrivateBotMessage(
+        `📖 **សៀវភៅជំនួយ & ពាក្យបញ្ជា (Bot Help)**\n━━━━━━━━━━━━━━━━━━━━\n🔹 \`/start\` - បើកផ្ទាំងបញ្ជា & ប៊ូតុងចុចអន្តរកម្ម\n🔹 \`/id\` - ឆែក Group ID & User ID ភ្លាមៗ\n🔹 \`/status\` - ឆែកស្ថានភាពប្រព័ន្ធ & អាជ្ញាប័ណ្ណ\n🔹 \`/rules\` - មើលគោលការណ៍សន្តិសុខគ្រុប\n━━━━━━━━━━━━━━━━━━━━\n⏱️ *សារនេះនឹងរលាយបាត់ក្នុង ១៥ វិនាទី ឬនៅពេលមានពាក្យបញ្ជាថ្មី។*`,
+        [
+          [
+            { label: "🔙 ត្រឡប់ទៅ Menu មេ", action: "btn_main_menu" },
+            { label: "🔄 Refresh", action: "btn_refresh" }
+          ],
+          [
+            { label: "❌ បិទសារ", action: "btn_close" }
+          ]
+        ],
+        15
+      );
+    } else if (action === "btn_main_menu" || action === "btn_refresh") {
+      handleMasterCommand("/start");
+    } else if (action === "btn_close") {
+      setPrivateMessages((prev) => prev.filter((m) => m.expiresInSeconds === undefined));
+      setGroupMessages((prev) => prev.filter((m) => m.expiresInSeconds === undefined));
     }
   };
 
@@ -363,7 +536,7 @@ export const BotSimulator: React.FC<BotSimulatorProps> = ({
         }
       ]);
 
-      // 2. Bot intercepts, deletes, mutes user, broadcasts 30s Alert
+      // 2. Bot intercepts, deletes, mutes user, broadcasts 15s Alert
       setTimeout(() => {
         const isDouble = fileName.includes(".pdf.apk") || fileName.includes(".jpg.apk");
         const reason = isDouble
@@ -372,7 +545,7 @@ export const BotSimulator: React.FC<BotSimulatorProps> = ({
 
         const alertText = `🛡️ **[ការប្រកាសអាសន្នសុវត្ថិភាព - SECURITY ALERT]** 🛡️\n\n⚠️ **បានរកឃើញ និងលុបហ្វាល់មេរោគជាបន្ទាន់!**\n━━━━━━━━━━━━━━━━━━━━\n👤 **អ្នកផ្ញើ:** Attacker User (ID: 78129034)\n📁 **ឈ្មោះហ្វាល់:** \`${fileName}\`\n🔍 **ប្រភេទគ្រោះថ្នាក់:** ${reason}\n⚡ **ចំណាត់ការ:** សារត្រូវបានលុបភ្លាមៗ | 🔇 បានបិទសិទ្ធិផ្ញើសារ (Mute) 24 ម៉ោង\n━━━━━━━━━━━━━━━━━━━━\n💡 **ការណែនាំ:** សូមប្រុងប្រយ័ត្នខ្ពស់ចំពោះហ្វាល់ដែលបង្កប់កន្ទុយ .apk ព្រោះវាអាចជា Banking Trojan លួចលុយធនាគារ!`;
 
-        addGroupBotMessage(alertText, 30, true);
+        addGroupBotMessage(alertText, 15, true);
 
         // Record log
         onAddAuditLog({
@@ -390,7 +563,63 @@ export const BotSimulator: React.FC<BotSimulatorProps> = ({
       return;
     }
 
-    // Regular group message
+    // If User sends command in Group -> Command message is automatically deleted on bot reply!
+    const isCommand = textToSend.startsWith("/") || textToSend.includes("ឆែក") || textToSend.includes("មើលលេខ ID");
+
+    if (isCommand) {
+      // Show ephemeral command message then bot replies and deletes command
+      setGroupMessages((prev) => [
+        ...prev,
+        {
+          id: "cmd-" + Date.now(),
+          sender: "user",
+          senderName: activeRole === "client_admin" ? "Sokha (Admin)" : "Member 01",
+          text: textToSend,
+          isDeleted: true,
+          expiresInSeconds: 1, // User command message deleted when bot responds
+          timestamp: timeStr
+        }
+      ]);
+
+      const mainButtons = [
+        [
+          { label: "🆔 ឆែក ID ក្រុម & ខ្ញុំ", action: "btn_id" },
+          { label: "📊 ស្ថានភាពប្រព័ន្ធ", action: "btn_status" }
+        ],
+        [
+          { label: "🛡️ គោលការណ៍ការពារ", action: "btn_rules" },
+          { label: "📖 សៀវភៅជំនួយ", action: "btn_help" }
+        ],
+        [
+          { label: "🔄 Refresh", action: "btn_refresh" },
+          { label: "❌ បិទសារ (Close)", action: "btn_close" }
+        ]
+      ];
+
+      setTimeout(() => {
+        if (textToSend === "🛡️ ឆែកស្ថានភាព Bot" || textToSend === "/status") {
+          const isAuth = targetGroup?.is_authorized && targetGroup?.is_enabled;
+          const statusText = `🛡️ **[ព័ត៌មាន និងស្ថានភាពសុវត្ថិភាព BOT STATUS]** 🛡️\n━━━━━━━━━━━━━━━━━━━━\n👥 **ឈ្មោះក្រុម:** \`${groupTitle}\`\n🆔 **Group ID:** \`${selectedGroupKey}\`\n🔰 **ស្ថានភាពការពារ:** ${isAuth ? "🟢 កំពុងការពារយ៉ាងសកម្ម (SHIELD ON)" : "🔴 មិនទាន់បើកការពារ"}\n🛒 **កញ្ចប់:** ${targetGroup?.plan_type || "N/A"}\n⚡ **ប្រព័ន្ធស្កេនមេរោគ:** ✅ សកម្ម (.apk, .exe, .scr, .bat, .jpg.apk)\n⏱️ **Auto-Delete Timer:** ✅ ១៥ វិនាទី (សារបញ្ជាត្រូវបានលុបភ្លាមៗ)`;
+          addGroupBotMessage(statusText, 15, false, mainButtons);
+        } else if (textToSend === "🆔 មើលលេខ ID Group" || textToSend === "/id" || textToSend === "/myid" || textToSend === "/groupid") {
+          const idText = `🆔 **ព័ត៌មាន GROUP ID៖**\n\n👥 **ឈ្មោះក្រុម:** \`${groupTitle}\`\n💬 **លេខ Group ID របស់អ្នក:** \`${selectedGroupKey}\`\n🔐 **ស្ថានភាព:** ${targetGroup?.is_authorized ? "🟢 បានបើកសិទ្ធិការពាររួចរាល់" : "🔴 មិនទាន់ទិញអាជ្ញាប័ណ្ណ"}\n\n👉 ឆានែលផ្លូវការ៖ [@sornsecurityrobot](https://t.me/sornsecurityrobot)\n⏱️ *សារនេះនឹងរលាយបាត់ក្នុង ១៥ វិនាទី ឬនៅពេលមានពាក្យបញ្ជាថ្មី។*`;
+          addGroupBotMessage(idText, 15, false, mainButtons);
+        } else if (textToSend === "/rules" || textToSend === "🛡️ គោលការណ៍") {
+          const rulesText = `🛡️ **គោលការណ៍សុវត្ថិភាពគ្រុប (Security Rules)**\n━━━━━━━━━━━━━━━━━━━━\n1. 🚫 **ហាមដាច់ខាត:** ផ្ញើ File មេរោគ (.apk, .exe, .cmd, .scr, .bat...)\n2. ⚡ **ហាម Spam:** ផ្ញើសារ Flood ញាប់លើសកំណត់ក្នុងគ្រុប\n3. 🔗 **ហាម Phishing:** ផ្ញើ Link បោកប្រាស់ ឬផ្សព្វផ្សាយខុសច្បាប់\n4. ⚖️ **វិធានការ:** ប្រព័ន្ធនឹងលុបសារ និងកំហិតសិទ្ធិដោយស្វ័យប្រវត្តិ!\n━━━━━━━━━━━━━━━━━━━━\n⏱️ *សារនេះនឹងរលាយបាត់ក្នុង ១៥ វិនាទី ឬនៅពេលមានពាក្យបញ្ជាថ្មី។*`;
+          addGroupBotMessage(rulesText, 15, false, mainButtons);
+        } else if (textToSend === "/start" || textToSend === "/help") {
+          const helpText = `🛡️ **សូមស្វាគមន៍មកកាន់ Security_bot_V2.0.1!**\n\nប្រព័ន្ធការពារ និងគ្រប់គ្រងសន្តិសុខគ្រុប Telegram ស្វ័យប្រវត្តិកំពុងដំណើរការ 24/7។\n\n✨ **មុខងារការពារសកម្ម & Auto-Sync៖**\n• 🚫 Anti-Malware / Dangerous Files (.apk, .exe, .bat, ...)\n• ⚡ Anti-Flood / Anti-Spam Auto Warning\n• 🆔 ពិនិត្យ Group ID & User ID ភ្លាមៗ\n• 🔄 Auto-Sync ជាមួយ Web Dashboard Realtime\n\n⏱️ *សារនេះនឹងរលាយបាត់ក្នុង ១៥ វិនាទី ឬនៅពេលមានពាក្យបញ្ជាថ្មី។*`;
+          addGroupBotMessage(helpText, 15, false, mainButtons);
+        } else {
+          addGroupBotMessage(`🤖 បានទទួលបញ្ជា: \`${textToSend}\`\n⏱️ *សារនេះនឹងរលាយបាត់ក្នុង ១៥ វិនាទី។*`, 15, false, mainButtons);
+        }
+      }, 200);
+
+      setInputText("");
+      return;
+    }
+
+    // Regular normal chat message
     setGroupMessages((prev) => [
       ...prev,
       {
@@ -401,16 +630,6 @@ export const BotSimulator: React.FC<BotSimulatorProps> = ({
         timestamp: timeStr
       }
     ]);
-
-    // Handle Client Admin commands inside group
-    if (textToSend === "🛡️ ឆែកស្ថានភាព Bot" || textToSend === "/status") {
-      const isAuth = targetGroup?.is_authorized && targetGroup?.is_enabled;
-      const statusText = `🛡️ **[ព័ត៌មាន និងស្ថានភាពសុវត្ថិភាព BOT STATUS]** 🛡️\n━━━━━━━━━━━━━━━━━━━━\n👥 **ឈ្មោះក្រុម:** \`${groupTitle}\`\n🆔 **Group ID:** \`${selectedGroupKey}\`\n🔰 **ស្ថានភាពការពារ:** ${isAuth ? "🟢 កំពុងការពារយ៉ាងសកម្ម (SHIELD ON)" : "🔴 មិនទាន់បើកការពារ"}\n🛒 **កញ្ចប់:** ${targetGroup?.plan_type || "N/A"}\n⚡ **ប្រព័ន្ធស្កេនមេរោគ:** ✅ សកម្ម (.apk, .exe, .scr, .bat, .jpg.apk)\n⏱️ **Auto-Delete Timer:** ✅ ៣០ វិនាទី`;
-      addGroupBotMessage(statusText, 30);
-    } else if (textToSend === "🆔 មើលលេខ ID Group" || textToSend === "/myid") {
-      const idText = `🆔 **ព័ត៌មាន GROUP ID៖**\n\n👥 **ឈ្មោះក្រុម:** \`${groupTitle}\`\n💬 **លេខ Group ID របស់អ្នក:** \`${selectedGroupKey}\`\n🔐 **ស្ថានភាព:** ${targetGroup?.is_authorized ? "🟢 បានបើកសិទ្ធិការពាររួចរាល់" : "🔴 មិនទាន់ទិញអាជ្ញាប័ណ្ណ"}\n\n👉 ឆានែលផ្លូវការ៖ [@sornsecurityrobot](https://t.me/sornsecurityrobot)\n💡 *(សូមយកលេខ Group ID នេះ ផ្ញើទៅកាន់ Master Admin ដើម្បីទិញ ឬបើកសិទ្ធិប្រើប្រាស់)*`;
-      addGroupBotMessage(idText, 30);
-    }
 
     setInputText("");
   };
